@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c1:#0a0a0f; --c2:#111118; --c3:#1a1a28; --c4:#252540;
+  --acc:#7c6fff; --acc2:#ff6b9d; --acc3:#00e5c3;
+  --t1:#f0f0ff;  --t2:#a0a0c0;  --t3:#606080;
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--c1);
+  color: var(--t1);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-display); }
+
+/* ── Tarjeta base ── */
+.card {
+  background: var(--c2);
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+}
+.card-hover { transition: border-color .2s, background .2s; cursor: pointer; }
+.card-hover:hover { border-color: rgba(255,255,255,0.18); background: var(--c3); }
+
+/* ── Botones ── */
+.np-btn-primary {
+  background: var(--acc); color: #fff; border: none;
+  padding: 11px 24px; border-radius: 24px; font-size: 15px;
+  font-weight: 500; cursor: pointer; font-family: var(--font-body);
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background .2s, transform .15s;
+}
+.np-btn-primary:hover { background: #6b5fff; transform: translateY(-1px); }
+.np-btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.np-btn-outline {
+  background: transparent; color: var(--t1);
+  border: 0.5px solid rgba(255,255,255,0.2);
+  padding: 11px 24px; border-radius: 24px; font-size: 15px;
+  cursor: pointer; font-family: var(--font-body);
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background .2s, border-color .2s;
+  text-decoration: none;
+}
+.np-btn-outline:hover { background: var(--c3); border-color: rgba(255,255,255,0.35); }
+
+/* ── Input ── */
+.np-input {
+  width: 100%; background: var(--c3);
+  border: 0.5px solid rgba(255,255,255,0.12);
+  border-radius: 10px; padding: 11px 16px;
+  color: var(--t1); font-size: 15px; font-family: var(--font-body);
+  outline: none; transition: border-color .2s, background .2s;
+}
+.np-input:focus { border-color: var(--acc); background: var(--c4); }
+.np-input::placeholder { color: var(--t3); }
+
+/* ── Barra de progreso/score ── */
+.score-bar  { height: 4px; border-radius: 2px; background: var(--c4); overflow: hidden; }
+.score-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg,var(--acc),var(--acc2)); transition: width 1s ease; }
+
+/* ── Tags ── */
+.tag { font-size: 11px; padding: 3px 9px; border-radius: 10px; font-weight: 500; }
+.tag-hot      { background: rgba(255,60,104,0.12); color:#ff6b9d; border:0.5px solid rgba(255,107,157,.3); }
+.tag-trend    { background: rgba(124,111,255,0.12); color:#b3a8ff; border:0.5px solid rgba(124,111,255,.3); }
+.tag-low      { background: rgba(0,229,195,0.1);   color:#00e5c3; border:0.5px solid rgba(0,229,195,.3); }
+.tag-seasonal { background: rgba(100,200,255,0.1); color:#64c8ff; border:0.5px solid rgba(100,200,255,.3); }
+
+/* ── Animaciones ── */
+@keyframes spin    { to { transform: rotate(360deg); } }
+@keyframes fadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.spinner { width:36px; height:36px; border:2px solid rgba(255,255,255,.1); border-top-color:var(--acc); border-radius:50%; animation:spin .75s linear infinite; }
+.fade-up { animation: fadeUp .35s ease both; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--c2); }
+::-webkit-scrollbar-thumb { background: var(--c4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--acc); }

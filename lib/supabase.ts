@@ -1,75 +1,67 @@
-import { createBrowserClient, createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+/**
+ * lib/supabase.ts
+ * ✅ SOLO importaciones seguras para cliente Y servidor.
+ * ❌ SIN import de 'next/headers' — eso causa el error de build.
+ */
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { createBrowserClient } from '@supabase/ssr'
+import { createClient }         from '@supabase/supabase-js'
+
+const SUPA_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPA_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const SUPA_SVC  = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // ── Tipos ────────────────────────────────────────────────────
 
 export type NicheResult = {
-  name: string
-  score: number
-  market_size: string
-  margin: string
-  competition: string
-  trend: string
-  trend_pct: number
+  name:         string
+  score:        number
+  market_size:  string
+  margin:       string
+  competition:  string
+  trend:        string
+  trend_pct:    number
   profit_score: number
-  tags: string[]
-  insights: string[]
-  suppliers: { name: string; note: string }[]
-  keywords: string[]
-  ad_channels: string[]
+  tags:         string[]
+  insights:     string[]
+  suppliers:    { name: string; note: string }[]
+  keywords:     string[]
+  ad_channels:  string[]
   trend_source?: string
 }
 
 export type Profile = {
-  id: string
-  email: string
-  full_name: string | null
-  plan: 'free' | 'pro' | 'agency'
-  searches_today: number
-  searches_reset_at: string
-  affiliate_code: string | null
-  stripe_customer_id: string | null
+  id:                  string
+  email:               string
+  full_name:           string | null
+  plan:                'free' | 'pro' | 'agency'
+  searches_today:      number
+  searches_reset_at:   string
+  affiliate_code:      string | null
+  stripe_customer_id:  string | null
 }
 
 // ── Cliente para componentes del navegador ('use client') ────
+// Llama a esta función dentro de tus componentes cliente.
 
 export function getSupabaseBrowser() {
-  return createBrowserClient(URL, ANON)
+  return createBrowserClient(SUPA_URL, SUPA_ANON)
 }
 
-// ── Cliente para componentes del servidor (API routes) ───────
-
-export async function getSupabaseServer() {
-  const cookieStore = await cookies()
-  return createServerClient(URL, ANON, {
-    cookies: {
-      getAll() { return cookieStore.getAll() },
-      setAll(list) {
-        try { list.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) }
-        catch {}
-      },
-    },
-  })
-}
-
-// ── Cliente admin con privilegios (solo en API routes) ───────
+// ── Cliente admin (solo para API routes del servidor) ────────
+// NUNCA lo importes en un componente 'use client'.
 
 export function getSupabaseAdmin() {
-  return createClient(URL, SERVICE, {
+  return createClient(SUPA_URL, SUPA_SVC, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 }
 
-// ── Ayudas de cuota ──────────────────────────────────────────
+// ── Helpers de cuota ─────────────────────────────────────────
 
 export const PLAN_LIMITS: Record<string, number> = {
-  free: 5,
-  pro: 999999,
+  free:   5,
+  pro:    999999,
   agency: 999999,
 }
 

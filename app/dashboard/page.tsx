@@ -52,6 +52,24 @@ export default function Dashboard() {
   const [history,  setHistory]  = useState<{query:string;results:NicheResult[];created_at:string}[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Verificar suscripción si el usuario viene de un pago exitoso
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('success') === '1') {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!session) return
+        try {
+          await fetch('/api/verify-subscription', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          await loadProfile(session.user.id)
+          window.history.replaceState({}, document.title, '/dashboard')
+        } catch (e) { console.error('verify-sub error', e) }
+      })
+    }
+  }, [])
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) loadProfile(data.user.id)

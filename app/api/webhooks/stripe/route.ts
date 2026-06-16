@@ -10,100 +10,115 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
-  } catch {
+  } catch (err) {
+    console.error('[webhook] Firma inválida:', err)
     return NextResponse.json({ error: 'Firma inválida' }, { status: 400 })
   }
 
   const db = getSupabaseAdmin()
 
   try {
-    switch (event.type) {
+    // ── Pago completado ────────────────────────────────────────
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session
+      console.log('[webhook] checkout.session.completed recibido')
+      console.log('[webhook] metadata:', JSON.stringify(session.metadata))
+      console.log('[webhook] customer:', session.customer)
+      console.log('[webhook] customer_email:', session.customer_details?.email)
 
-      // ── Pago completado en el checkout ─────────────────────
-      // Este es el evento más fiable para cambiar el plan
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session
-        const userId  = session.metadata?.user_id
-        const plan    = session.metadata?.plan as 'pro' | 'agency'
+      // Determinar el plan (desde metadata o desde el precio)
+      let plan: 'pro' | 'agency' = (session.metadata?.plan as 'pro' | 'agency') ?? 'pro'
 
-        console.log('[webhook] checkout.session.completed', { userId, plan })
+      // Si no hay plan en metadata, determinarlo por el precio
+      if (!session.metadata?.plan && session.amount_total) {
+        plan = session.amount_total <= 1900 ? 'pro' : 'agency'
+      }
 
-        if (!userId || !plan) {
-          console.error('[webhook] Falta user_id o plan en metadata')
-          break
-        }
+      // ── Buscar usuario de 3 formas distintas ─────────────────
 
-        // Cambiar el plan del usuario
-        const { error } = await db
+      let userId: string | null = null
+
+      // Forma 1: metadata directa (lo más rápido)
+      if (session.metadata?.user_id) {
+        userId = session.metadata.user_id
+        console.log('[webhook] Usuario encontrado por metadata:', userId)
+      }
+
+      // Forma 2: por stripe_customer_id guardado en perfiles
+      if (!userId && session.customer) {
+        const { data } = await db
           .from('profiles')
-          .update({ plan })
-          .eq('id', userId)
-
-        if (error) {
-          console.error('[webhook] Error actualizando plan:', error)
-        } else {
-          console.log(`[webhook] Plan actualizado a ${plan} para usuario ${userId}`)
+          .select('id')
+          .eq('stripe_customer_id', session.customer as string)
+          .single()
+        if (data?.id) {
+          userId = data.id
+          console.log('[webhook] Usuario encontrado por customer_id:', userId)
         }
-        break
       }
 
-      // ── Suscripción creada o actualizada ───────────────────
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated': {
-        const sub  = event.data.object as Stripe.Subscription
-        const uid  = sub.metadata?.user_id
-        const plan = sub.metadata?.plan as 'pro' | 'agency'
+      // Forma 3: por email del pago
+      if (!userId && session.customer_details?.email) {
+        const { data } = await db
+          .from('profiles')
+          .select('id')
+          .eq('email', session.customer_details.email)
+          .single()
+        if (data?.id) {
+          userId = data.id
+          console.log('[webhook] Usuario encontrado por email:', userId)
+        }
+      }
 
-        console.log('[webhook] subscription event', { uid, plan, status: sub.status })
-
-        // Guardar suscripción en base de datos
-        await db.from('subscriptions').upsert({
-          id:                   sub.id,
-          user_id:              uid ?? '',
-          status:               sub.status,
-          plan:                 plan ?? 'pro',
-          stripe_price_id:      sub.items.data[0].price.id,
-          current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-          current_period_end:   new Date(sub.current_period_end   * 1000).toISOString(),
-          cancel_at_period_end: sub.cancel_at_period_end,
+      if (!userId) {
+        console.error('[webhook] ❌ No se encontró el usuario. Datos del pago:', {
+          metadata:       session.metadata,
+          customer:       session.customer,
+          customer_email: session.customer_details?.email,
         })
-
-        // Actualizar plan si uid está disponible
-        if (uid && (sub.status === 'active' || sub.status === 'trialing')) {
-          await db.from('profiles').update({ plan }).eq('id', uid)
-          console.log(`[webhook] Plan actualizado a ${plan} vía subscription para ${uid}`)
-        }
-        break
+        // Devolvemos 200 para que Stripe no reintente, pero logueamos el error
+        return NextResponse.json({ received: true, warning: 'user_not_found' })
       }
 
-      // ── Suscripción cancelada ──────────────────────────────
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object as Stripe.Subscription
-        const uid = sub.metadata?.user_id
-        if (uid) {
-          await db.from('profiles').update({ plan: 'free' }).eq('id', uid)
-          console.log(`[webhook] Plan vuelto a free para ${uid}`)
-        }
-        await db.from('subscriptions').update({ status: 'canceled' }).eq('id', sub.id)
-        break
-      }
+      // ── Actualizar el plan ────────────────────────────────────
+      const { error } = await db
+        .from('profiles')
+        .update({ plan })
+        .eq('id', userId)
 
-      // ── Pago fallido ───────────────────────────────────────
-      case 'invoice.payment_failed': {
-        const inv = event.data.object as Stripe.Invoice
-        if (inv.subscription) {
-          await db.from('subscriptions')
-            .update({ status: 'past_due' })
-            .eq('id', inv.subscription as string)
-        }
-        break
+      if (error) {
+        console.error('[webhook] ❌ Error actualizando plan en Supabase:', error)
+      } else {
+        console.log(`[webhook] ✅ Plan actualizado a "${plan}" para usuario ${userId}`)
       }
-
-      default:
-        console.log(`[webhook] Evento no manejado: ${event.type}`)
     }
+
+    // ── Suscripción cancelada ──────────────────────────────────
+    else if (event.type === 'customer.subscription.deleted') {
+      const sub = event.data.object as Stripe.Subscription
+
+      // Buscar usuario por customer_id
+      const customerId = sub.customer as string
+      const { data } = await db
+        .from('profiles')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single()
+
+      if (data?.id) {
+        await db.from('profiles').update({ plan: 'free' }).eq('id', data.id)
+        console.log(`[webhook] ✅ Plan vuelto a free para usuario ${data.id}`)
+      }
+    }
+
+    // ── Pago fallido ───────────────────────────────────────────
+    else if (event.type === 'invoice.payment_failed') {
+      const inv = event.data.object as Stripe.Invoice
+      console.log('[webhook] Pago fallido para:', inv.customer)
+    }
+
   } catch (err) {
-    console.error(`[webhook] Error en ${event.type}:`, err)
+    console.error('[webhook] Error inesperado:', err)
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 

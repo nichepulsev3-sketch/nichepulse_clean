@@ -6,9 +6,9 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 const BASE_SYSTEM = `Eres NichePulse AI, el mejor analista de nichos de dropshipping del mundo.
 RESPONDE ÚNICAMENTE CON UN ARRAY JSON VÁLIDO.
-Sin texto antes ni después. Sin bloques de código. Sin explicaciones. SOLO el array JSON.
+Sin texto antes ni después. Sin bloques de código. SOLO el array JSON empezando por [ y terminando por ].
 
-Por cada nicho devuelve EXACTAMENTE esta estructura completa:
+Estructura de cada nicho (TODOS los campos son obligatorios):
 {
   "name": "nombre específico del nicho",
   "score": 85,
@@ -19,41 +19,63 @@ Por cada nicho devuelve EXACTAMENTE esta estructura completa:
   "trend_pct": 34,
   "profit_score": 72,
   "tags": ["trending","low_comp"],
-  "insights": [
-    "insight específico 1 con datos reales",
-    "insight específico 2 con demografía",
-    "insight específico 3 con plataformas"
-  ],
-  "suppliers": [
-    {"name":"AliExpress","note":"Gran catálogo, envío 15-30 días"},
-    {"name":"Spocket","note":"Proveedores EU/US, envío 3-7 días"}
-  ],
-  "keywords": ["keyword principal","keyword 2","keyword 3","keyword 4","keyword 5"],
+  "insights": ["insight 1 con datos reales","insight 2 con demografía","insight 3 con plataformas"],
+  "suppliers": [{"name":"AliExpress","note":"Gran catálogo"},{"name":"Spocket","note":"Envío rápido EU"}],
+  "keywords": ["keyword1","keyword2","keyword3","keyword4","keyword5"],
   "ad_channels": ["TikTok Ads","Meta Ads","Google Shopping"],
   "trend_source": "organic",
-  "target_audience": "Descripción detallada del público objetivo: edad, intereses, comportamiento de compra",
+  "target_audience": "Mujeres 25-40 años interesadas en bienestar animal, gasto mensual alto en mascotas",
   "avg_ticket": "$35-65",
-  "seasonality": "Describe si tiene picos estacionales, meses fuertes o si es evergreen",
-  "risks": [
-    "Riesgo 1 específico de este nicho",
-    "Riesgo 2 a considerar",
-    "Riesgo 3 importante"
-  ],
-  "getting_started": [
-    "Paso 1: acción concreta para empezar este nicho",
-    "Paso 2: siguiente acción específica",
-    "Paso 3: cómo validar antes de invertir mucho"
-  ],
-  "winning_angle": "El ángulo de marketing único que diferencia este nicho de la competencia"
+  "seasonality": "Evergreen con pico en Navidad y San Valentín",
+  "risks": ["Saturación creciente en AliExpress","Dependencia de proveedores chinos","Márgenes se comprimen con más anunciantes"],
+  "getting_started": ["Crea una tienda Shopify con tema minimalista y 20 productos piloto","Lanza anuncios en TikTok con UGC auténtico de mascotas","Valida con $50 de presupuesto antes de escalar"],
+  "winning_angle": "Posicionate como la marca de cuidado emocional para mascotas, no solo productos"
 }
 
-Reglas:
-- PRIORIZA nichos con señales reales en los datos en vivo.
-- Score mayor de 85 solo para oportunidades excepcionales.
-- Los insights, risks y getting_started deben ser MUY ESPECÍFICOS para este nicho.
-- target_audience debe incluir edad, intereses y comportamiento real del comprador.
-- winning_angle debe ser accionable e inspirador, no genérico.
-- Devuelve entre 3 y 10 nichos ordenados por score. SOLO el array JSON.`
+IMPORTANTE: Usa siempre comillas dobles. No uses saltos de línea dentro de los strings. No pongas texto fuera del array JSON.`
+
+// ── Reparar JSON con errores comunes ────────────────────────
+function repairAndParse(text: string): any {
+  // Eliminar bloques markdown
+  let s = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+
+  // Extraer solo el array JSON (de [ a ])
+  const start = s.indexOf('[')
+  const end   = s.lastIndexOf(']')
+  if (start !== -1 && end > start) {
+    s = s.slice(start, end + 1)
+  }
+
+  // Intentar parsear directo
+  try { return JSON.parse(s) } catch {}
+
+  // Reparar comas finales antes de } o ]
+  s = s.replace(/,(\s*[}\]])/g, '$1')
+
+  try { return JSON.parse(s) } catch {}
+
+  // Si el JSON está cortado (sin cerrar), intentar cerrar
+  const openBraces   = (s.match(/\{/g) || []).length
+  const closeBraces  = (s.match(/\}/g) || []).length
+  const openBrackets = (s.match(/\[/g) || []).length
+  const closeBrackets= (s.match(/\]/g) || []).length
+
+  let repaired = s
+  // Eliminar último objeto incompleto
+  const lastComplete = repaired.lastIndexOf('},')
+  if (lastComplete !== -1) {
+    repaired = repaired.slice(0, lastComplete + 1) + ']'
+  } else {
+    for (let i = 0; i < openBraces  - closeBraces;  i++) repaired += '}'
+    for (let i = 0; i < openBrackets- closeBrackets; i++) repaired += ']'
+  }
+
+  repaired = repaired.replace(/,(\s*[}\]])/g, '$1')
+
+  try { return JSON.parse(repaired) } catch {}
+
+  return null
+}
 
 export async function searchNiches(
   query:   string,
@@ -61,17 +83,18 @@ export async function searchNiches(
   plan:    string,
   geo =    'US'
 ): Promise<NicheResult[]> {
-  const maxResults = plan === 'free' ? 3 : 10
+  const maxResults = plan === 'free' ? 3 : 8
 
-  // Obtener señales en vivo con timeout de 4s para no bloquear en móvil
+  // Señales en vivo con timeout 4s para no bloquear en móvil
   let trendContext = ''
   try {
-    const trendPromise    = getTrends(geo)
-    const timeoutPromise  = new Promise<null>(r => setTimeout(() => r(null), 4000))
-    const result          = await Promise.race([trendPromise, timeoutPromise])
+    const result = await Promise.race([
+      getTrends(geo),
+      new Promise<null>(r => setTimeout(() => r(null), 4000)),
+    ])
     if (result) trendContext = buildTrendContext(result)
   } catch (e) {
-    console.warn('[ai] Trends no disponibles, continuando sin contexto:', e)
+    console.warn('[ai] Trends no disponibles:', e)
   }
 
   const filterDesc = Object.entries(filters)
@@ -83,17 +106,17 @@ export async function searchNiches(
 
   const userPrompt = `Consulta: "${query}"
 Filtros: ${filterDesc || 'ninguno'}
-País/Mercado: ${geo}
+País: ${geo}
 Máximo: ${maxResults} nichos
 Fecha: ${new Date().toISOString().split('T')[0]}
 
-Devuelve SOLO el array JSON con análisis COMPLETOS y DETALLADOS de cada nicho.`
+Devuelve SOLO el array JSON con ${maxResults} nichos. Todos los campos completos. Sin texto extra.`
 
   let text = ''
   try {
     const response = await client.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 6000,
+      max_tokens: 8096,
       system:     systemPrompt,
       messages:   [{ role: 'user', content: userPrompt }],
     })
@@ -103,36 +126,23 @@ Devuelve SOLO el array JSON con análisis COMPLETOS y DETALLADOS de cada nicho.`
       .join('')
   } catch (err: any) {
     console.error('[ai] Error Anthropic:', err?.status, err?.message)
-
-    if (err?.status === 401)
-      throw new Error('ANTHROPIC_API_KEY inválida. Ve a Railway → Variables y comprueba que empieza por sk-ant-')
-    if (err?.status === 429)
-      throw new Error('Límite de la API de Anthropic alcanzado. Espera unos minutos e inténtalo de nuevo.')
+    if (err?.status === 401) throw new Error('ANTHROPIC_API_KEY inválida. Ve a Railway → Variables y compruébala.')
+    if (err?.status === 429) throw new Error('Límite de la IA alcanzado. Espera unos minutos.')
     if (err?.status === 402 || err?.message?.includes('credit'))
-      throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing y recarga.')
-
-    throw new Error('Error conectando con la IA. Inténtalo de nuevo en unos segundos.')
+      throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
+    throw new Error('Error conectando con la IA. Inténtalo de nuevo.')
   }
 
-  console.log('[ai] Respuesta raw (200 chars):', text.slice(0, 200))
+  console.log('[ai] Respuesta recibida. Longitud:', text.length, 'chars. Inicio:', text.slice(0, 80))
 
-  // Extraer JSON de varias formas
-  let parsed: any = null
-
-  try { parsed = JSON.parse(text.replace(/```json|```/g, '').trim()) } catch {}
+  const parsed = repairAndParse(text)
 
   if (!parsed) {
-    try { const m = text.match(/\[[\s\S]*\]/); if (m) parsed = JSON.parse(m[0]) } catch {}
-  }
-  if (!parsed) {
-    try { const m = text.match(/\{[\s\S]*\}/); if (m) { const o = JSON.parse(m[0]); parsed = o.niches ?? o.results ?? o.data } } catch {}
-  }
-
-  if (!parsed) {
-    console.error('[ai] JSON no parseable. Texto:', text.slice(0, 500))
+    console.error('[ai] JSON no reparable. Texto completo:', text)
     throw new Error('La IA devolvió un formato inesperado. Inténtalo de nuevo.')
   }
 
   const arr = Array.isArray(parsed) ? parsed : [parsed]
+  console.log('[ai] Nichos parseados correctamente:', arr.length)
   return arr.slice(0, maxResults) as NicheResult[]
 }

@@ -37,41 +37,147 @@ const SRC_PILL: Record<string,[string,string]> = {
 function scoreColor(s:number){ return s>=90?'#00e5c3':s>=80?'#7c6fff':'#ff6b9d' }
 type Tab = 'search'|'history'|'affiliate'
 
-// ── Exportar análisis como fichero de texto ───────────────────
-function exportAnalysis(n: NicheResult) {
-  const lines = [
-    'NICHEPULSE — ANÁLISIS COMPLETO DE NICHO',
-    '═'.repeat(44),
-    '',
-    `Nicho:            ${n.name}`,
-    `Score IA:         ${n.score}/100`,
-    `Tamaño mercado:   ${n.market_size}`,
-    `Margen estimado:  ${n.margin}`,
-    `Competencia:      ${n.competition}`,
-    `Tendencia:        ${n.trend}`,
-    '',
-    '─── INSIGHTS DE LA IA ───────────────────────',
-    ...n.insights.map((ins,i) => `${i+1}. ${ins}`),
-    '',
-    '─── PROVEEDORES RECOMENDADOS ────────────────',
-    ...n.suppliers.map(s => `• ${s.name}: ${s.note}`),
-    '',
-    '─── PALABRAS CLAVE ──────────────────────────',
-    n.keywords.join(' · '),
-    '',
-    '─── CANALES PUBLICITARIOS ───────────────────',
-    n.ad_channels.join(' · '),
-    '',
-    '─'.repeat(44),
-    `Generado por NichePulse AI · ${new Date().toLocaleDateString('es-ES')}`,
-  ]
-  const blob = new Blob([lines.join('\n')], { type:'text/plain;charset=utf-8' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href     = url
-  a.download = `nichepulse-${n.name.replace(/\s+/g,'-').toLowerCase()}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
+// ── Exportar análisis completo como PDF ──────────────────────
+function exportPDF(n: NicheResult) {
+  const date = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' })
+  const scoreColor = n.score >= 90 ? '#00b894' : n.score >= 80 ? '#7c6fff' : '#ff6b9d'
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>NichePulse — ${n.name}</title>
+<style>
+  @page { margin: 15mm 18mm; size: A4; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; line-height: 1.6; font-size: 10.5pt; background: #fff; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+  .header { background: linear-gradient(135deg, #7c6fff 0%, #ff6b9d 100%); color: white; padding: 22px 28px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-left h1 { font-size: 18pt; font-weight: 800; margin-bottom: 4px; }
+  .header-left .subtitle { font-size: 10pt; opacity: 0.85; }
+  .score-circle { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+  .score-num { font-size: 20pt; font-weight: 800; line-height: 1; }
+  .score-lbl { font-size: 8pt; opacity: 0.8; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
+  .metric { background: #f5f5ff; border: 1px solid #e0e0f5; border-radius: 8px; padding: 11px 10px; text-align: center; }
+  .metric .val { font-size: 13pt; font-weight: 700; color: #7c6fff; }
+  .metric .lbl { font-size: 8.5pt; color: #888; margin-top: 2px; }
+
+  .section { margin-bottom: 16px; }
+  .section-title { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #7c6fff; border-bottom: 1.5px solid #7c6fff; padding-bottom: 4px; margin-bottom: 10px; }
+
+  .insight { background: #f5f5ff; border-left: 3px solid #7c6fff; padding: 7px 11px; margin-bottom: 5px; border-radius: 0 6px 6px 0; font-size: 10pt; }
+  .risk    { background: #fff5f5; border-left: 3px solid #ff6b9d; padding: 7px 11px; margin-bottom: 5px; border-radius: 0 6px 6px 0; font-size: 10pt; }
+  .step    { background: #f0fff8; border-left: 3px solid #00b894; padding: 7px 11px; margin-bottom: 5px; border-radius: 0 6px 6px 0; font-size: 10pt; display: flex; gap: 8px; }
+  .step-num { font-weight: 700; color: #00b894; flex-shrink: 0; }
+
+  .supplier-row { display: flex; justify-content: space-between; padding: 7px 11px; border-bottom: 1px solid #f0f0f5; font-size: 10pt; }
+  .supplier-row:last-child { border-bottom: none; }
+  .supplier-table { border: 1px solid #e0e0f5; border-radius: 6px; overflow: hidden; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag  { background: #eeeefd; color: #7c6fff; border-radius: 10px; padding: 3px 10px; font-size: 9pt; font-weight: 500; }
+  .keywords { display: flex; flex-wrap: wrap; gap: 5px; }
+  .kw { background: #f0f0f0; color: #444; border-radius: 5px; padding: 3px 9px; font-size: 9.5pt; }
+
+  .angle-box { background: linear-gradient(135deg, #f0eeff, #fff0f5); border: 1.5px solid #d0c8ff; border-radius: 8px; padding: 12px 14px; font-size: 10.5pt; font-style: italic; color: #4a3f9f; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e0e0f5; display: flex; justify-content: space-between; font-size: 8.5pt; color: #aaa; }
+  .brand { font-weight: 700; color: #7c6fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div style="font-size:9pt;font-weight:600;opacity:.7;margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">NICHEPULSE · ANÁLISIS DE NICHO</div>
+    <h1>${n.name}</h1>
+    <div class="subtitle">${n.competition} competencia · ${n.trend} · Mercado: ${n.market_size}</div>
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      ${n.tags.map(t => `<span style="background:rgba(255,255,255,0.2);border-radius:10px;padding:2px 9px;font-size:8.5pt">${t}</span>`).join('')}
+    </div>
+  </div>
+  <div class="score-circle">
+    <div class="score-num">${n.score}</div>
+    <div class="score-lbl">Score IA</div>
+  </div>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="val">${n.market_size}</div><div class="lbl">Tamaño mercado</div></div>
+  <div class="metric"><div class="val">${n.margin}</div><div class="lbl">Margen estimado</div></div>
+  <div class="metric"><div class="val">${n.avg_ticket ?? 'N/D'}</div><div class="lbl">Ticket promedio</div></div>
+  <div class="metric"><div class="val">${n.competition}</div><div class="lbl">Competencia</div></div>
+</div>
+
+${n.winning_angle ? `
+<div class="section">
+  <div class="section-title">🎯 Ángulo ganador de marketing</div>
+  <div class="angle-box">"${n.winning_angle}"</div>
+</div>` : ''}
+
+${n.target_audience ? `
+<div class="section">
+  <div class="section-title">👥 Público objetivo</div>
+  <div style="background:#f5f5ff;border-radius:8px;padding:11px 14px;font-size:10.5pt">${n.target_audience}</div>
+</div>` : ''}
+
+<div class="two-col">
+  <div class="section">
+    <div class="section-title">💡 Insights de la IA</div>
+    ${n.insights.map(ins => `<div class="insight">${ins}</div>`).join('')}
+  </div>
+  <div class="section">
+    <div class="section-title">⚠️ Riesgos a considerar</div>
+    ${(n.risks ?? ['Analiza la competencia antes de escalar','Verifica calidad del proveedor','Considera costes de publicidad']).map(r => `<div class="risk">${r}</div>`).join('')}
+  </div>
+</div>
+
+${n.getting_started ? `
+<div class="section">
+  <div class="section-title">🚀 Cómo empezar</div>
+  ${n.getting_started.map((step, i) => `<div class="step"><div class="step-num">${i+1}.</div><div>${step}</div></div>`).join('')}
+</div>` : ''}
+
+<div class="two-col">
+  <div class="section">
+    <div class="section-title">📦 Proveedores recomendados</div>
+    <div class="supplier-table">
+      ${n.suppliers.map(s => `<div class="supplier-row"><strong>${s.name}</strong><span style="color:#888">${s.note}</span></div>`).join('')}
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">📅 Estacionalidad</div>
+    <div style="background:#f5f5ff;border-radius:8px;padding:11px 14px;font-size:10pt">${n.seasonality ?? 'Producto evergreen con demanda constante todo el año.'}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">🔍 Palabras clave principales</div>
+  <div class="keywords">${n.keywords.map(k => `<span class="kw">${k}</span>`).join('')}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">📢 Canales publicitarios ideales</div>
+  <div class="tags">${n.ad_channels.map(ch => `<span class="tag">${ch}</span>`).join('')}</div>
+</div>
+
+<div class="footer">
+  <span>Generado el ${date} con NichePulse AI</span>
+  <span class="brand">nichepulse.com</span>
+</div>
+
+<script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`
+
+  const win = window.open('', '_blank', 'width=900,height=700')
+  if (!win) { alert('Activa las ventanas emergentes para descargar el PDF'); return }
+  win.document.write(html)
+  win.document.close()
 }
 
 export default function Dashboard() {
@@ -544,7 +650,7 @@ export default function Dashboard() {
 
             {/* Botón exportar — diferente según plan */}
             {isPro ? (
-              <button onClick={()=>{ exportAnalysis(selected); }}
+              <button onClick={()=>{ exportPDF(selected); }}
                 className="np-btn-primary" style={{ width:'100%', justifyContent:'center' }}>
                 ⬇ Descargar análisis completo (.txt)
               </button>

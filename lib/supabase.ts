@@ -20,13 +20,14 @@ export type NicheResult = {
   keywords:         string[]
   ad_channels:      string[]
   trend_source?:    string
-  // Campos extendidos para análisis completo
   target_audience?: string
   avg_ticket?:      string
   seasonality?:     string
   risks?:           string[]
   getting_started?: string[]
   winning_angle?:   string
+  expert_verdict?:  string
+  validated_roi?:   string
 }
 
 export type Profile = {
@@ -53,9 +54,11 @@ export function getSupabaseAdmin() {
 export const PLAN_LIMITS: Record<string, number> = {
   free: 5, pro: 999999, agency: 999999,
 }
-export function canSearch(plan: string, used: number) {
+
+export function canSearch(plan: string, used: number): boolean {
   return used < (PLAN_LIMITS[plan] ?? 5)
 }
+
 export function searchesLeft(plan: string, used: number): number {
   const limit = PLAN_LIMITS[plan] ?? 5
   if (limit > 9000) return Infinity

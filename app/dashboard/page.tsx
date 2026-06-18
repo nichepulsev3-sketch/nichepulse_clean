@@ -621,11 +621,34 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Badge Agency — esquina inferior derecha */}
+      {/* Badge Agency — esquina superior derecha (PC) / inferior centro (móvil) */}
       {isAgency&&(
         <div onClick={()=>window.location.href='/pricing'}
-          style={{position:'fixed',bottom:20,right:20,background:'linear-gradient(135deg,#ff9900,#ff6b9d)',color:'#fff',padding:'8px 14px',borderRadius:20,fontSize:12,fontWeight:700,cursor:'pointer',zIndex:50,boxShadow:'0 4px 14px rgba(255,153,0,0.45)',display:'flex',alignItems:'center',gap:6,userSelect:'none'}}>
-          🏆 Agency · Ver plan
+          style={{
+            position:'fixed',
+            // Desktop: top right  |  Mobile: bottom center
+            ...(isMobile
+              ? {bottom:16, left:'50%', transform:'translateX(-50%)'}
+              : {top:70, right:16}
+            ),
+            background:'linear-gradient(135deg,#ff9900,#ff6b9d)',
+            color:'#fff',
+            padding: isMobile ? '7px 16px' : '6px 14px',
+            borderRadius:20,
+            fontSize: isMobile ? 13 : 12,
+            fontWeight:700,
+            cursor:'pointer',
+            zIndex:50,
+            boxShadow:'0 4px 14px rgba(255,153,0,0.45)',
+            display:'flex',
+            alignItems:'center',
+            gap:6,
+            userSelect:'none' as const,
+            backdropFilter:'blur(8px)',
+            whiteSpace:'nowrap' as const,
+          }}>
+          🏆 <span>{isMobile ? 'Plan Agency' : 'Agency'}</span>
+          <span style={{opacity:.75,fontSize:isMobile?11:10}}>· Ver plan</span>
         </div>
       )}
     </div>

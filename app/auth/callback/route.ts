@@ -1,16 +1,39 @@
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseServer } from '@/lib/supabase-server'
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code     = searchParams.get('code')
+  const error    = searchParams.get('error')
+  const errorDesc= searchParams.get('error_description')
   const redirect = searchParams.get('next') ?? '/dashboard'
 
-  if (code) {
-    const supabase = await getSupabaseServer()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) return NextResponse.redirect(`${origin}${redirect}`)
+  // Capturar errores OAuth de Supabase (p.ej. proveedor no habilitado)
+  if (error) {
+    console.error('[callback] OAuth error:', error, errorDesc)
+    const msg = errorDesc ?? error
+    return NextResponse.redirect(
+      `${origin}/auth/login?oauth_error=${encodeURIComponent(msg)}`
+    )
   }
 
-  return NextResponse.redirect(`${origin}/auth/login?error=1`)
+  if (code) {
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll()     { return cookieStore.getAll() },
+          setAll(list) { list.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) },
+        },
+      }
+    )
+    const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
+    if (!exchangeErr) return NextResponse.redirect(`${origin}${redirect}`)
+    console.error('[callback] Exchange error:', exchangeErr)
+  }
+
+  return NextResponse.redirect(`${origin}/auth/login?oauth_error=login_failed`)
 }

@@ -3,6 +3,93 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile } from '@/lib/supabase'
 import TrendsPanel from '@/components/TrendsPanel'
 
+// ── Regiones por continente ───────────────────────────────────
+const GEO_REGIONS: Record<string, {code:string;label:string;currency:string}[]> = {
+  '🌎 América del Norte': [
+    {code:'US',label:'🇺🇸 Estados Unidos',currency:'USD $'},
+    {code:'CA',label:'🇨🇦 Canadá',currency:'CAD $'},
+    {code:'MX',label:'🇲🇽 México',currency:'MXN $'},
+  ],
+  '🌎 América Latina': [
+    {code:'BR',label:'🇧🇷 Brasil',currency:'BRL R$'},
+    {code:'AR',label:'🇦🇷 Argentina',currency:'ARS $'},
+    {code:'CO',label:'🇨🇴 Colombia',currency:'COP $'},
+    {code:'CL',label:'🇨🇱 Chile',currency:'CLP $'},
+    {code:'PE',label:'🇵🇪 Perú',currency:'PEN S/'},
+    {code:'VE',label:'🇻🇪 Venezuela',currency:'USD $'},
+    {code:'EC',label:'🇪🇨 Ecuador',currency:'USD $'},
+    {code:'UY',label:'🇺🇾 Uruguay',currency:'UYU $'},
+    {code:'BO',label:'🇧🇴 Bolivia',currency:'BOB Bs'},
+    {code:'PY',label:'🇵🇾 Paraguay',currency:'PYG ₲'},
+  ],
+  '🌍 Europa': [
+    {code:'ES',label:'🇪🇸 España',currency:'EUR €'},
+    {code:'FR',label:'🇫🇷 Francia',currency:'EUR €'},
+    {code:'DE',label:'🇩🇪 Alemania',currency:'EUR €'},
+    {code:'IT',label:'🇮🇹 Italia',currency:'EUR €'},
+    {code:'GB',label:'🇬🇧 Reino Unido',currency:'GBP £'},
+    {code:'PT',label:'🇵🇹 Portugal',currency:'EUR €'},
+    {code:'NL',label:'🇳🇱 Países Bajos',currency:'EUR €'},
+    {code:'PL',label:'🇵🇱 Polonia',currency:'PLN zł'},
+    {code:'SE',label:'🇸🇪 Suecia',currency:'SEK kr'},
+    {code:'NO',label:'🇳🇴 Noruega',currency:'NOK kr'},
+    {code:'CH',label:'🇨🇭 Suiza',currency:'CHF Fr'},
+    {code:'BE',label:'🇧🇪 Bélgica',currency:'EUR €'},
+    {code:'AT',label:'🇦🇹 Austria',currency:'EUR €'},
+    {code:'RO',label:'🇷🇴 Rumanía',currency:'RON lei'},
+    {code:'CZ',label:'🇨🇿 Chequia',currency:'CZK Kč'},
+    {code:'GR',label:'🇬🇷 Grecia',currency:'EUR €'},
+    {code:'HU',label:'🇭🇺 Hungría',currency:'HUF Ft'},
+    {code:'DK',label:'🇩🇰 Dinamarca',currency:'DKK kr'},
+    {code:'FI',label:'🇫🇮 Finlandia',currency:'EUR €'},
+    {code:'RU',label:'🇷🇺 Rusia',currency:'RUB ₽'},
+    {code:'TR',label:'🇹🇷 Turquía',currency:'TRY ₺'},
+    {code:'UA',label:'🇺🇦 Ucrania',currency:'UAH ₴'},
+  ],
+  '🌏 Oriente Medio': [
+    {code:'AE',label:'🇦🇪 Emiratos Árabes',currency:'AED د.إ'},
+    {code:'SA',label:'🇸🇦 Arabia Saudí',currency:'SAR ﷼'},
+    {code:'IL',label:'🇮🇱 Israel',currency:'ILS ₪'},
+    {code:'QA',label:'🇶🇦 Qatar',currency:'QAR ﷼'},
+    {code:'KW',label:'🇰🇼 Kuwait',currency:'KWD د.ك'},
+  ],
+  '🌏 Asia': [
+    {code:'CN',label:'🇨🇳 China',currency:'CNY ¥'},
+    {code:'JP',label:'🇯🇵 Japón',currency:'JPY ¥'},
+    {code:'KR',label:'🇰🇷 Corea del Sur',currency:'KRW ₩'},
+    {code:'IN',label:'🇮🇳 India',currency:'INR ₹'},
+    {code:'SG',label:'🇸🇬 Singapur',currency:'SGD $'},
+    {code:'PH',label:'🇵🇭 Filipinas',currency:'PHP ₱'},
+    {code:'TH',label:'🇹🇭 Tailandia',currency:'THB ฿'},
+    {code:'ID',label:'🇮🇩 Indonesia',currency:'IDR Rp'},
+    {code:'MY',label:'🇲🇾 Malasia',currency:'MYR RM'},
+    {code:'VN',label:'🇻🇳 Vietnam',currency:'VND ₫'},
+    {code:'PK',label:'🇵🇰 Pakistán',currency:'PKR ₨'},
+    {code:'BD',label:'🇧🇩 Bangladesh',currency:'BDT ৳'},
+    {code:'LK',label:'🇱🇰 Sri Lanka',currency:'LKR ₨'},
+    {code:'TW',label:'🇹🇼 Taiwán',currency:'TWD $'},
+    {code:'HK',label:'🇭🇰 Hong Kong',currency:'HKD $'},
+  ],
+  '🌏 Oceanía': [
+    {code:'AU',label:'🇦🇺 Australia',currency:'AUD $'},
+    {code:'NZ',label:'🇳🇿 Nueva Zelanda',currency:'NZD $'},
+  ],
+  '🌍 África': [
+    {code:'ZA',label:'🇿🇦 Sudáfrica',currency:'ZAR R'},
+    {code:'NG',label:'🇳🇬 Nigeria',currency:'NGN ₦'},
+    {code:'EG',label:'🇪🇬 Egipto',currency:'EGP £'},
+    {code:'MA',label:'🇲🇦 Marruecos',currency:'MAD د.م.'},
+    {code:'KE',label:'🇰🇪 Kenia',currency:'KES KSh'},
+    {code:'GH',label:'🇬🇭 Ghana',currency:'GHS ₵'},
+    {code:'TN',label:'🇹🇳 Túnez',currency:'TND د.ت'},
+    {code:'ET',label:'🇪🇹 Etiopía',currency:'ETB Br'},
+  ],
+}
+
+const GEO_MAP: Record<string,{label:string;currency:string}> = {}
+Object.values(GEO_REGIONS).flat().forEach(g=>{ GEO_MAP[g.code]={label:g.label,currency:g.currency} })
+
+// ── Tags ─────────────────────────────────────────────────────
 const TAG_MAP: Record<string,[string,string]> = {
   trending:    ['tag-hot',      '🔥 Tendencia'  ],
   low_comp:    ['tag-low',      '🎯 Baja comp.' ],
@@ -12,17 +99,11 @@ const TAG_MAP: Record<string,[string,string]> = {
   viral:       ['tag-hot',      '🚀 Viral'      ],
 }
 const FILTERS = [
-  { key:'trending',    label:'🔥 Tendencia'       },
-  { key:'low_comp',   label:'🎯 Baja competencia' },
-  { key:'high_margin',label:'💰 Alto margen'      },
-  { key:'global',     label:'🌍 Global'           },
-  { key:'evergreen',  label:'🌿 Evergreen'        },
-]
-const GEOS = [
-  {code:'US',label:'🇺🇸 EE.UU.'  },{code:'ES',label:'🇪🇸 España'   },
-  {code:'MX',label:'🇲🇽 México'  },{code:'GB',label:'🇬🇧 UK'       },
-  {code:'DE',label:'🇩🇪 Alemania'},{code:'BR',label:'🇧🇷 Brasil'    },
-  {code:'AR',label:'🇦🇷 Argentina'},{code:'FR',label:'🇫🇷 Francia'  },
+  {key:'trending',    label:'🔥 Tendencia'      },
+  {key:'low_comp',   label:'🎯 Baja competencia'},
+  {key:'high_margin',label:'💰 Alto margen'     },
+  {key:'global',     label:'🌍 Global'          },
+  {key:'evergreen',  label:'🌿 Evergreen'       },
 ]
 const SRC_PILL: Record<string,[string,string]> = {
   google: ['#4285F4','📈 Google'],
@@ -31,35 +112,41 @@ const SRC_PILL: Record<string,[string,string]> = {
   organic:['#7c6fff','🤖 IA'    ],
 }
 function scoreColor(s:number){ return s>=90?'#00e5c3':s>=80?'#7c6fff':'#ff6b9d' }
-function scoreGlow(s:number){ return s>=90?'0 0 12px rgba(0,229,195,0.5)':s>=80?'0 0 12px rgba(124,111,255,0.5)':'0 0 12px rgba(255,107,157,0.5)' }
+function scoreGlow(s:number){ return s>=90?'0 0 10px rgba(0,229,195,0.5)':s>=80?'0 0 10px rgba(124,111,255,0.5)':'0 0 10px rgba(255,107,157,0.5)' }
 type Tab = 'search'|'history'|'affiliate'|'plans'
 
-// ── PDF export ────────────────────────────────────────────────
-function exportPDF(n: NicheResult, plan: string) {
-  const isAgency = plan==='agency'
-  const date = new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})
-  const grad = isAgency?'linear-gradient(135deg,#ff9900,#ff6b9d)':'linear-gradient(135deg,#7c6fff,#ff6b9d)'
-  const accent = isAgency?'#ff9900':'#7c6fff'
+// ── Link directo al proveedor ─────────────────────────────────
+function supplierUrl(name: string, keyword: string): string {
+  const q = encodeURIComponent(keyword)
+  const n = name.toLowerCase()
+  if (n.includes('aliexpress')) return `https://www.aliexpress.com/wholesale?SearchText=${q}`
+  if (n.includes('amazon'))     return `https://www.amazon.com/s?k=${q}`
+  if (n.includes('spocket'))    return `https://app.spocket.co/products?search=${q}`
+  if (n.includes('cj'))         return `https://cjdropshipping.com/search?q=${q}`
+  if (n.includes('zendrop'))    return `https://app.zendrop.com/search?q=${q}`
+  return `https://www.google.com/search?q=${q}+dropshipping`
+}
 
-  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
-<title>NichePulse — ${n.name}</title>
-<style>
-@page{margin:15mm 18mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a2e;line-height:1.6;font-size:10.5pt}
+// ── PDF export ────────────────────────────────────────────────
+function exportPDF(n: NicheResult, plan: string, currency: string) {
+  const isAgency=plan==='agency'
+  const date=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})
+  const grad=isAgency?'linear-gradient(135deg,#ff9900,#ff6b9d)':'linear-gradient(135deg,#7c6fff,#ff6b9d)'
+  const accent=isAgency?'#ff9900':'#7c6fff'
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>NichePulse — ${n.name}</title>
+<style>@page{margin:15mm 18mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a2e;line-height:1.6;font-size:10.5pt}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .hdr{background:${grad};color:#fff;padding:22px 28px;border-radius:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start}
-.hdr h1{font-size:17pt;font-weight:800;margin-bottom:4px}
-.sc{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+.hdr h1{font-size:17pt;font-weight:800;margin-bottom:4px}.sc{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-.m{background:#f5f5ff;border:1px solid #e0e0f5;border-radius:8px;padding:10px;text-align:center}
-.mv{font-size:12pt;font-weight:700;color:${accent}}.ml{font-size:8pt;color:#888;margin-top:2px}
-.sec{margin-bottom:14px}
-.st{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${accent};border-bottom:1.5px solid ${accent};padding-bottom:3px;margin-bottom:8px}
+.m{background:#f5f5ff;border:1px solid #e0e0f5;border-radius:8px;padding:10px;text-align:center}.mv{font-size:12pt;font-weight:700;color:${accent}}.ml{font-size:8pt;color:#888;margin-top:2px}
+.sec{margin-bottom:14px}.st{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${accent};border-bottom:1.5px solid ${accent};padding-bottom:3px;margin-bottom:8px}
 .ins{background:#f5f5ff;border-left:3px solid ${accent};padding:6px 10px;margin-bottom:4px;border-radius:0 6px 6px 0;font-size:10pt}
 .risk{background:#fff5f5;border-left:3px solid #ff6b9d;padding:6px 10px;margin-bottom:4px;border-radius:0 6px 6px 0;font-size:10pt}
 .stp{background:#f0fff8;border-left:3px solid #00b894;padding:6px 10px;margin-bottom:4px;border-radius:0 6px 6px 0;font-size:10pt;display:flex;gap:8px}
-.srow{display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid #f0f0f5;font-size:10pt}
+.srow{display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid #f0f0f5;font-size:10pt;align-items:center}
 .srow:last-child{border-bottom:none}.stable{border:1px solid #e0e0f5;border-radius:6px;overflow:hidden}
+.slink{color:${accent};font-size:9pt;text-decoration:none;background:#f0f0ff;border-radius:4px;padding:2px 7px}
 .tags{display:flex;flex-wrap:wrap;gap:5px}.tag{background:#eeeefd;color:${accent};border-radius:10px;padding:3px 10px;font-size:9pt;font-weight:500}
 .kws{display:flex;flex-wrap:wrap;gap:5px}.kw{background:#f0f0f0;color:#444;border-radius:5px;padding:3px 9px;font-size:9.5pt}
 .tc{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -68,20 +155,21 @@ ${isAgency?`.exp{background:linear-gradient(135deg,#fff8e7,#fff5f0);border:2px s
 .expl{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${accent};margin-bottom:6px}
 .roi{background:#f0fff8;border:1.5px solid #00b894;border-radius:8px;padding:11px 14px;font-size:10.5pt;color:#085041;margin-bottom:14px}`:''}
 .footer{margin-top:20px;padding-top:8px;border-top:1px solid #e0e0f5;display:flex;justify-content:space-between;font-size:8.5pt;color:#aaa}
+.curr{display:inline-block;background:#f0fff8;color:#00b894;border-radius:6px;padding:2px 8px;font-size:9pt;font-weight:600;margin-left:6px}
 </style></head><body>
 <div class="hdr">
   <div>
     <div style="font-size:8.5pt;font-weight:600;opacity:.7;margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">NICHEPULSE${isAgency?' · AGENCY EXPERT':' · PRO'}</div>
-    <h1>${n.name}</h1>
+    <h1>${n.name} <span class="curr">${currency}</span></h1>
     <div style="font-size:9.5pt;opacity:.85;margin-top:4px">${n.competition} competencia · ${n.trend} · ${n.market_size}</div>
     <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">${n.tags.map(t=>`<span style="background:rgba(255,255,255,.2);border-radius:10px;padding:2px 8px;font-size:8pt">${t}</span>`).join('')}</div>
   </div>
   <div class="sc"><div style="font-size:20pt;font-weight:800;line-height:1">${n.score}</div><div style="font-size:8pt;opacity:.8">Score IA</div></div>
 </div>
 <div class="metrics">
-  <div class="m"><div class="mv">${n.market_size}</div><div class="ml">Mercado</div></div>
+  <div class="m"><div class="mv">${n.market_size}</div><div class="ml">Mercado global</div></div>
   <div class="m"><div class="mv">${n.margin}</div><div class="ml">Margen</div></div>
-  <div class="m"><div class="mv">${n.avg_ticket??'N/D'}</div><div class="ml">Ticket prom.</div></div>
+  <div class="m"><div class="mv">${n.avg_ticket??'N/D'}</div><div class="ml">Ticket (${currency})</div></div>
   <div class="m"><div class="mv">${n.competition}</div><div class="ml">Competencia</div></div>
 </div>
 ${isAgency&&n.expert_verdict?`<div class="exp"><div class="expl">🏆 Veredicto del equipo experto</div>${n.expert_verdict}</div>`:''}
@@ -94,15 +182,14 @@ ${n.target_audience?`<div class="sec"><div class="st">👥 Público objetivo</di
 </div>
 ${n.getting_started?`<div class="sec"><div class="st">🚀 Cómo empezar</div>${n.getting_started.map((s,i)=>`<div class="stp"><span style="font-weight:700;color:#00b894;flex-shrink:0">${i+1}.</span><span>${s}</span></div>`).join('')}</div>`:''}
 <div class="tc">
-  <div class="sec"><div class="st">📦 Proveedores</div><div class="stable">${n.suppliers.map(s=>`<div class="srow"><strong>${s.name}</strong><span style="color:#888">${s.note}</span></div>`).join('')}</div></div>
+  <div class="sec"><div class="st">📦 Proveedores</div><div class="stable">${n.suppliers.map(s=>`<div class="srow"><strong>${s.name}</strong><span style="color:#888">${s.note}</span><a class="slink" href="${supplierUrl(s.name,n.keywords[0]??n.name)}" target="_blank">Buscar →</a></div>`).join('')}</div></div>
   <div class="sec"><div class="st">📅 Estacionalidad</div><div style="background:#f5f5ff;border-radius:8px;padding:10px 13px;font-size:10pt">${n.seasonality??'Evergreen'}</div></div>
 </div>
-<div class="sec"><div class="st">🔍 Keywords</div><div class="kws">${n.keywords.map(k=>`<span class="kw">${k}</span>`).join('')}</div></div>
-<div class="sec"><div class="st">📢 Canales</div><div class="tags">${n.ad_channels.map(c=>`<span class="tag">${c}</span>`).join('')}</div></div>
-<div class="footer"><span>Generado el ${date}${isAgency?' · Agency Expert':' · Pro'}</span><span style="font-weight:700;color:${accent}">NichePulse AI</span></div>
+<div class="sec"><div class="st">🔍 Keywords principales</div><div class="kws">${n.keywords.map(k=>`<span class="kw">${k}</span>`).join('')}</div></div>
+<div class="sec"><div class="st">📢 Canales publicitarios</div><div class="tags">${n.ad_channels.map(c=>`<span class="tag">${c}</span>`).join('')}</div></div>
+<div class="footer"><span>Generado el ${date}${isAgency?' · Agency Expert':' · Pro'} · Moneda región: ${currency}</span><span style="font-weight:700;color:${accent}">NichePulse AI</span></div>
 <script>window.onload=function(){window.print()}<\/script>
 </body></html>`
-
   const win=window.open('','_blank','width=920,height=720')
   if(!win){alert('Activa las ventanas emergentes');return}
   win.document.write(html); win.document.close()
@@ -126,63 +213,51 @@ function useCountdown(profile:Profile|null):string{
 }
 
 // ── Planes inline ─────────────────────────────────────────────
-function PlansTab({ onUpgrade }: { onUpgrade:(plan:'pro'|'agency')=>void }) {
-  const PLANS = [
-    { key:'free' as const, name:'Free', price:'$0', period:'/ siempre', color:'var(--t3)', grad:'',
-      features:['5 búsquedas / día','Top 3 nichos','Score IA básico','❌ Análisis completo','❌ Exportar PDF','❌ Señales en vivo full'],
-      cta:'Plan actual', disabled:true },
-    { key:'pro' as const, name:'Pro', price:'$19', period:'/ mes', color:'var(--acc)', grad:'var(--g1)',
-      features:['Búsquedas ilimitadas','Top 8 nichos detallados','Análisis completo','✓ Exportar PDF','✓ Señales en vivo','✓ Alertas tendencias'],
-      cta:'Subir a Pro', disabled:false },
-    { key:'agency' as const, name:'Agency', price:'$79', period:'/ mes', color:'#ff9900', grad:'var(--g2)',
-      features:['Todo en Pro','Análisis Expert validado','Veredicto del equipo experto','ROI validado 90 días','Hasta 10 usuarios','API + white-label'],
-      cta:'Subir a Agency', disabled:false },
+function PlansTab({onUpgrade}:{onUpgrade:(p:'pro'|'agency')=>void}){
+  const PLANS=[
+    {key:'free' as const,name:'Free',price:'$0',period:'/ siempre',grad:'',features:['5 búsquedas / día','Top 3 nichos','Score IA','❌ Análisis completo','❌ PDF exportable','❌ Links a proveedores'],cta:'Plan actual',dis:true},
+    {key:'pro' as const,name:'Pro',price:'$19',period:'/ mes',grad:'var(--g1)',features:['Búsquedas ilimitadas','Top 8 nichos','Análisis completo en PDF','✓ Links directos a proveedores','✓ Keywords y cómo empezar','✓ Señales en vivo'],cta:'Subir a Pro',dis:false},
+    {key:'agency' as const,name:'Agency',price:'$79',period:'/ mes',grad:'var(--g2)',features:['Todo en Pro','Análisis Expert validado','Veredicto equipo experto','ROI validado 90 días','Hasta 10 usuarios','API + white-label'],cta:'Subir a Agency',dis:false},
   ]
-  return (
+  return(
     <div style={{flex:1,padding:'2rem 1.5rem',maxWidth:900,margin:'0 auto',width:'100%'}}>
       <div style={{textAlign:'center',marginBottom:'2rem'}}>
         <h2 style={{fontSize:'clamp(1.5rem,4vw,2.25rem)',fontWeight:800,letterSpacing:'-1px',marginBottom:'.5rem'}}>
           Elige tu <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>plan</span>
         </h2>
-        <p style={{color:'var(--t2)',fontSize:14}}>Empieza gratis. Cancela cuando quieras. Sin compromisos.</p>
+        <p style={{color:'var(--t2)',fontSize:14}}>Empieza gratis. Cancela cuando quieras.</p>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,marginBottom:'2rem'}}>
         {PLANS.map(p=>(
           <div key={p.key} style={{background:'var(--c2)',border:`1px solid ${p.key==='pro'?'rgba(124,111,255,0.5)':p.key==='agency'?'rgba(255,153,0,0.5)':'rgba(255,255,255,0.08)'}`,borderRadius:16,padding:'1.5rem',position:'relative',boxShadow:p.key==='pro'?'0 0 30px rgba(124,111,255,0.1)':p.key==='agency'?'0 0 30px rgba(255,153,0,0.1)':'none'}}>
             {p.key==='pro'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g1)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(124,111,255,0.4)'}}>⚡ Más popular</div>}
-            {p.key==='agency'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g2)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(255,153,0,0.4)'}}>🏆 Expert</div>}
-            <div style={{fontFamily:'var(--font-display)',fontWeight:700,marginBottom:'.25rem',fontSize:'1rem'}}>{p.name}</div>
+            {p.key==='agency'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g2)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap'}}>🏆 Expert</div>}
+            <div style={{fontFamily:'var(--font-display)',fontWeight:700,marginBottom:'.25rem'}}>{p.name}</div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'2.25rem',fontWeight:800,lineHeight:1,marginBottom:'.75rem',background:p.grad||'none',WebkitBackgroundClip:p.grad?'text':'none',WebkitTextFillColor:p.grad?'transparent':'var(--t1)'}}>
               {p.price}<span style={{fontSize:13,fontWeight:400,color:'var(--t3)',WebkitTextFillColor:'var(--t3)'}}> {p.period}</span>
             </div>
             <ul style={{listStyle:'none',marginBottom:'1.25rem',display:'flex',flexDirection:'column',gap:7}}>
               {p.features.map(f=>(
                 <li key={f} style={{fontSize:13,color:f.startsWith('❌')?'var(--t3)':'var(--t2)',display:'flex',alignItems:'center',gap:7}}>
-                  {!f.startsWith('❌')&&!f.startsWith('✓')&&<span style={{color:'var(--acc3)',fontSize:14}}>✓</span>}
-                  {f.startsWith('✓')&&<span style={{color:'var(--acc3)',fontSize:14}}>✓</span>}
-                  {f.startsWith('❌')&&<span style={{color:'var(--t3)',fontSize:14}}>✕</span>}
+                  <span style={{color:f.startsWith('❌')?'var(--t3)':'var(--acc3)',fontSize:13}}>{f.startsWith('❌')?'✕':'✓'}</span>
                   {f.replace(/^[✓❌] /,'')}
                 </li>
               ))}
             </ul>
-            <button onClick={()=>!p.disabled&&onUpgrade(p.key as 'pro'|'agency')} disabled={p.disabled}
-              style={{width:'100%',padding:11,borderRadius:9,fontSize:14,fontWeight:600,cursor:p.disabled?'default':'pointer',fontFamily:'var(--font-body)',border:'none',
-                background:p.disabled?'var(--c3)':p.grad||'var(--acc)',
-                color:p.disabled?'var(--t3)':'#fff',
-                opacity:p.disabled?.6:1,
-                boxShadow:p.disabled?'none':p.key==='pro'?'0 4px 14px rgba(124,111,255,0.35)':'0 4px 14px rgba(255,153,0,0.35)',
-              }}>
+            <button onClick={()=>!p.dis&&onUpgrade(p.key as 'pro'|'agency')} disabled={p.dis}
+              style={{width:'100%',padding:11,borderRadius:9,fontSize:14,fontWeight:600,cursor:p.dis?'default':'pointer',fontFamily:'var(--font-body)',border:'none',
+                background:p.dis?'var(--c3)':p.grad||'var(--acc)',color:p.dis?'var(--t3)':'#fff',
+                opacity:p.dis?.6:1,boxShadow:p.dis?'none':p.key==='pro'?'0 4px 14px rgba(124,111,255,0.35)':'0 4px 14px rgba(255,153,0,0.35)'}}>
               {p.cta}
             </button>
           </div>
         ))}
       </div>
-      {/* Métodos de pago */}
       <div style={{textAlign:'center'}}>
-        <div style={{fontSize:11,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'1rem'}}>Métodos de pago aceptados</div>
+        <div style={{fontSize:11,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'1rem'}}>Métodos de pago</div>
         <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-          {[['💳','Tarjetas'],['📱','PayPal'],['₿','Crypto'],['🏦','Wire/SEPA'],['🇧🇷','PIX/OXXO'],['🌐','Stripe']].map(([i,n])=>(
-            <div key={n} style={{background:'var(--c2)',border:'0.5px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'8px 14px',textAlign:'center',minWidth:80}}>
+          {[['💳','Tarjetas'],['📱','PayPal'],['₿','Crypto'],['🏦','Wire'],['🇧🇷','PIX/OXXO'],['🌐','Stripe 135+']].map(([i,n])=>(
+            <div key={n} style={{background:'var(--c2)',border:'0.5px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'8px 14px',textAlign:'center'}}>
               <div style={{fontSize:'1.1rem',marginBottom:2}}>{i}</div>
               <div style={{fontSize:11,color:'var(--t2)'}}>{n}</div>
             </div>
@@ -193,28 +268,40 @@ function PlansTab({ onUpgrade }: { onUpgrade:(plan:'pro'|'agency')=>void }) {
   )
 }
 
+// ── Historial con paginación ──────────────────────────────────
+function dateLabel(dateStr: string): string {
+  const d = new Date(dateStr), now = new Date()
+  const diff = Math.floor((now.getTime()-d.getTime())/86400000)
+  if (diff===0) return 'Hoy'
+  if (diff===1) return 'Ayer'
+  if (diff<7)   return 'Esta semana'
+  if (diff<30)  return 'Este mes'
+  return 'Más antiguas'
+}
+
 export default function Dashboard() {
   const supabase = getSupabaseBrowser()
-  const [profile,  setProfile]  = useState<Profile|null>(null)
-  const [query,    setQuery]    = useState('')
-  const [filters,  setFilters]  = useState<Record<string,boolean>>({trending:true,low_comp:true})
-  const [geo,      setGeo]      = useState('US')
-  const [results,  setResults]  = useState<NicheResult[]>([])
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
-  const [selected, setSelected] = useState<NicheResult|null>(null)
-  const [tab,      setTab]      = useState<Tab>('search')
-  const [history,  setHistory]  = useState<{query:string;results:NicheResult[];created_at:string}[]>([])
-  const [isMobile, setIsMobile] = useState(false)
-  const [showTrends,setShowTrends]=useState(false)
-  const lastQuery  = useRef('')
-  const countdown  = useCountdown(profile)
+  const [profile,      setProfile]      = useState<Profile|null>(null)
+  const [profileLoaded,setProfileLoaded]= useState(false)
+  const [query,        setQuery]        = useState('')
+  const [filters,      setFilters]      = useState<Record<string,boolean>>({trending:true,low_comp:true})
+  const [geo,          setGeo]          = useState('US')
+  const [results,      setResults]      = useState<NicheResult[]>([])
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState('')
+  const [selected,     setSelected]     = useState<NicheResult|null>(null)
+  const [tab,          setTab]          = useState<Tab>('search')
+  const [history,      setHistory]      = useState<{query:string;results:NicheResult[];created_at:string}[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyPage,  setHistoryPage]  = useState(1)
+  const [isMobile,     setIsMobile]     = useState(false)
+  const [showTrends,   setShowTrends]   = useState(false)
+  const lastQuery = useRef('')
+  const countdown = useCountdown(profile)
+  const HIST_PER_PAGE = 10
+  const currency = GEO_MAP[geo]?.currency ?? 'USD $'
 
-  useEffect(()=>{
-    const check=()=>setIsMobile(window.innerWidth<768)
-    check(); window.addEventListener('resize',check); return()=>window.removeEventListener('resize',check)
-  },[])
-
+  useEffect(()=>{ const c=()=>setIsMobile(window.innerWidth<768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c) },[])
   useEffect(()=>{
     const p=new URLSearchParams(window.location.search)
     if(p.get('success')==='1'){
@@ -224,28 +311,19 @@ export default function Dashboard() {
       })
     }
   },[])
-
-  useEffect(()=>{
-    supabase.auth.getUser().then(({data})=>{
-      if(data.user)loadProfile(data.user.id)
-      else window.location.href='/auth/login'
-    })
-  },[])
-
+  useEffect(()=>{ supabase.auth.getUser().then(({data})=>{ if(data.user)loadProfile(data.user.id); else window.location.href='/auth/login' }) },[])
   useEffect(()=>{ fetch(`/api/trends?geo=${geo}`).catch(()=>{}) },[geo])
-
   useEffect(()=>{ if(countdown==='¡Ahora!'&&profile){ const id=setTimeout(()=>loadProfile(profile.id),1000); return()=>clearTimeout(id) } },[countdown])
 
   async function loadProfile(id:string){
     const{data}=await supabase.from('profiles').select('*').eq('id',id).single()
     if(data)setProfile(data as Profile)
+    setProfileLoaded(true)
   }
 
   const runSearch=useCallback(async(override?:string)=>{
-    const q=override??query
-    if(!q.trim()||loading)return
-    if(override)setQuery(override)
-    lastQuery.current=q
+    const q=override??query; if(!q.trim()||loading)return
+    if(override)setQuery(override); lastQuery.current=q
     setLoading(true);setError('');setResults([])
     try{
       const{data:{session}}=await supabase.auth.getSession()
@@ -267,11 +345,11 @@ export default function Dashboard() {
     window.location.href=url
   }
 
-  async function loadHistory(){
-    const{data:{user}}=await supabase.auth.getUser()
-    if(!user)return
-    const{data}=await supabase.from('niche_searches').select('query,results,created_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20)
-    if(data)setHistory(data as any)
+  async function loadHistory(page=1){
+    const{data:{user}}=await supabase.auth.getUser(); if(!user)return
+    const from=(page-1)*HIST_PER_PAGE, to=from+HIST_PER_PAGE-1
+    const{data,count}=await supabase.from('niche_searches').select('query,results,created_at',{count:'exact'}).eq('user_id',user.id).order('created_at',{ascending:false}).range(from,to)
+    if(data){ setHistory(page===1?data as any:[...history,...data as any]); setHistoryTotal(count??0); setHistoryPage(page) }
   }
 
   const isPro    = profile?.plan==='pro'||profile?.plan==='agency'
@@ -279,36 +357,38 @@ export default function Dashboard() {
   const remaining= profile?searchesLeft(profile.plan,profile.searches_today):5
   const noSearches = remaining===0
 
-  const TABS: {key:Tab;label:string;icon:string}[] = [
+  const TABS: {key:Tab;label:string;icon:string}[]=[
     {key:'search',   label:'Buscar',   icon:'🔍'},
     {key:'history',  label:'Historial',icon:'📋'},
     {key:'affiliate',label:'Afiliados',icon:'👥'},
     {key:'plans',    label:'Planes',   icon:'💎'},
   ]
 
+  // Agrupar historial por fecha
+  const historyGrouped = history.reduce((acc,h)=>{
+    const label=dateLabel(h.created_at)
+    if(!acc[label])acc[label]=[]
+    acc[label].push(h)
+    return acc
+  },{} as Record<string,typeof history>)
+  const GROUP_ORDER=['Hoy','Ayer','Esta semana','Este mes','Más antiguas']
+
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--c1)'}}>
 
       {/* NAV */}
-      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'10px 12px':'12px 20px',borderBottom:'1px solid rgba(124,111,255,0.15)',position:'sticky',top:0,background:'rgba(8,8,15,0.95)',backdropFilter:'blur(16px)',zIndex:100,boxShadow:'0 1px 20px rgba(0,0,0,0.3)'}}>
-        <div style={{fontFamily:'var(--font-display)',fontSize:isMobile?'1rem':'1.15rem',fontWeight:800,letterSpacing:'-0.5px',display:'flex',alignItems:'center',gap:8}}>
+      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'10px 12px':'12px 20px',borderBottom:'1px solid rgba(124,111,255,0.15)',position:'sticky',top:0,background:'rgba(8,8,15,0.96)',backdropFilter:'blur(16px)',zIndex:100,boxShadow:'0 1px 20px rgba(0,0,0,0.3)'}}>
+        <div style={{fontFamily:'var(--font-display)',fontSize:isMobile?'1rem':'1.15rem',fontWeight:800,letterSpacing:'-0.5px',display:'flex',alignItems:'center',gap:6}}>
           <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Niche</span>
           <span style={{color:'var(--t1)'}}>Pulse</span>
-          {!isPro&&<span style={{background:'linear-gradient(90deg,var(--acc3),#00b4d8)',color:'#000',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>FREE</span>}
-          {isPro&&!isAgency&&<span style={{background:'var(--g1)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10,boxShadow:'0 2px 8px rgba(124,111,255,0.4)'}}>PRO</span>}
-          {isAgency&&<span style={{background:'var(--g2)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10,boxShadow:'0 2px 8px rgba(255,153,0,0.4)'}}>AGENCY</span>}
+          {profileLoaded&&!isPro&&<span style={{background:'linear-gradient(90deg,var(--acc3),#00b4d8)',color:'#000',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>FREE</span>}
+          {profileLoaded&&isPro&&!isAgency&&<span style={{background:'var(--g1)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>PRO</span>}
+          {profileLoaded&&isAgency&&<span style={{background:'var(--g2)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>AGENCY</span>}
         </div>
         <div style={{display:'flex',gap:4,alignItems:'center'}}>
           {TABS.map(t=>(
-            <button key={t.key} onClick={()=>{setTab(t.key);if(t.key==='history')loadHistory()}}
-              style={{padding:isMobile?'6px 8px':'6px 14px',borderRadius:20,fontSize:isMobile?11:13,cursor:'pointer',
-                border:tab===t.key?'none':'1px solid rgba(124,111,255,0.2)',
-                background:tab===t.key?'var(--g1)':'transparent',
-                color:tab===t.key?'#fff':'var(--t2)',
-                fontFamily:'var(--font-body)',fontWeight:tab===t.key?600:400,
-                boxShadow:tab===t.key?'0 2px 10px rgba(124,111,255,0.35)':'none',
-                transition:'all .2s',
-              }}>
+            <button key={t.key} onClick={()=>{setTab(t.key);if(t.key==='history')loadHistory(1)}}
+              style={{padding:isMobile?'6px 8px':'6px 14px',borderRadius:20,fontSize:isMobile?11:13,cursor:'pointer',border:tab===t.key?'none':'1px solid rgba(124,111,255,0.2)',background:tab===t.key?'var(--g1)':'transparent',color:tab===t.key?'#fff':'var(--t2)',fontFamily:'var(--font-body)',fontWeight:tab===t.key?600:400,boxShadow:tab===t.key?'0 2px 10px rgba(124,111,255,0.35)':'none',transition:'all .2s'}}>
               {isMobile?t.icon:t.label}
             </button>
           ))}
@@ -324,85 +404,55 @@ export default function Dashboard() {
         <div style={{flex:1,display:'flex',gap:20,padding:isMobile?'1rem':'1.5rem',maxWidth:1200,margin:'0 auto',width:'100%',alignItems:'flex-start',flexDirection:isMobile?'column':'row'}}>
           <div style={{flex:1,minWidth:0}}>
 
-            {/* Hero colorido */}
-            <div style={{textAlign:'center',marginBottom:'1.75rem',position:'relative',padding:'1.5rem 1rem',borderRadius:20,background:'linear-gradient(135deg,rgba(124,111,255,0.08),rgba(255,107,157,0.06),rgba(0,229,195,0.05))',border:'1px solid rgba(124,111,255,0.15)'}}>
-              <div style={{fontSize:10,letterSpacing:'2px',color:'var(--acc3)',textTransform:'uppercase',fontWeight:600,marginBottom:'.6rem'}}>
-                IA · Google Trends · TikTok · Amazon
-              </div>
-              <h1 style={{fontSize:isMobile?'1.5rem':'clamp(1.6rem,4vw,2.6rem)',fontWeight:800,lineHeight:1.1,letterSpacing:'-1px',marginBottom:'.5rem'}}>
+            {/* Hero */}
+            <div style={{textAlign:'center',marginBottom:'1.5rem',padding:'1.5rem 1rem',borderRadius:20,background:'linear-gradient(135deg,rgba(124,111,255,0.08),rgba(255,107,157,0.06),rgba(0,229,195,0.04))',border:'1px solid rgba(124,111,255,0.12)'}}>
+              <h1 style={{fontSize:isMobile?'1.5rem':'clamp(1.6rem,4vw,2.5rem)',fontWeight:800,lineHeight:1.1,letterSpacing:'-1px',marginBottom:'.5rem'}}>
                 Encuentra tu{' '}
-                <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>
-                  nicho perfecto
-                </span>
+                <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>nicho perfecto</span>
               </h1>
               <p style={{color:'var(--t2)',fontSize:'0.85rem',lineHeight:1.6}}>
-                {isAgency?'Análisis validado por expertos con ROI garantizado':'Señales en tiempo real cruzadas con Claude AI'}
+                {isAgency?'Análisis validado por expertos con ROI garantizado':'Señales de mercado en tiempo real con Claude AI'}
               </p>
-              {/* Stats */}
               {!isMobile&&(
                 <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:'1rem'}}>
-                  {[{n:'12K+',l:'Nichos',cls:'stat-purple'},{n:'180+',l:'Países',cls:'stat-pink'},{n:'Live',l:'Señales',cls:'stat-teal'}].map(s=>(
-                    <div key={s.n} className={`card ${s.cls}`} style={{padding:'8px 16px',textAlign:'center',minWidth:80}}>
-                      <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',fontWeight:700,background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{s.n}</div>
-                      <div style={{fontSize:11,color:'var(--t3)',marginTop:1}}>{s.l}</div>
+                  {[{n:'12K+',l:'Nichos',c:'rgba(124,111,255,0.12)'},{n:'50+',l:'Regiones',c:'rgba(255,107,157,0.1)'},{n:'Live',l:'Señales',c:'rgba(0,229,195,0.1)'}].map(s=>(
+                    <div key={s.n} style={{background:s.c,border:'0.5px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'7px 14px',textAlign:'center',minWidth:80}}>
+                      <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>{s.n}</div>
+                      <div style={{fontSize:10,color:'var(--t3)',marginTop:1}}>{s.l}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Banner FREE con countdown — solo cuando se acaban */}
-            {!isPro&&noSearches&&(
+            {/* Banner sin búsquedas */}
+            {profileLoaded&&!isPro&&noSearches&&(
               <div style={{background:'linear-gradient(135deg,rgba(124,111,255,0.15),rgba(255,107,157,0.12))',border:'1px solid rgba(124,111,255,0.4)',borderRadius:14,padding:'16px',marginBottom:'1.25rem',textAlign:'center',boxShadow:'0 4px 20px rgba(124,111,255,0.15)'}}>
                 <div style={{fontSize:'1.5rem',marginBottom:6}}>⏰</div>
-                <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:'1rem',marginBottom:4}}>
-                  Has usado tus 5 búsquedas de hoy
-                </div>
-                {countdown&&countdown!=='¡Ahora!'&&(
-                  <div style={{fontSize:13,color:'var(--t2)',marginBottom:'1rem'}}>
-                    Se recargan en{' '}
-                    <strong style={{color:'var(--acc3)',fontFamily:'var(--font-display)',fontSize:'1.1rem'}}>{countdown}</strong>
-                  </div>
-                )}
-                {countdown==='¡Ahora!'&&(
-                  <div style={{fontSize:13,color:'var(--acc3)',marginBottom:'1rem',fontWeight:600}}>¡Ya se recargaron! Recarga la página.</div>
-                )}
+                <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:'1rem',marginBottom:4}}>Has usado tus 5 búsquedas de hoy</div>
+                {countdown&&countdown!=='¡Ahora!'&&<div style={{fontSize:13,color:'var(--t2)',marginBottom:'1rem'}}>Se recargan en{' '}<strong style={{color:'var(--acc3)',fontFamily:'var(--font-display)',fontSize:'1.1rem'}}>{countdown}</strong></div>}
+                {countdown==='¡Ahora!'&&<div style={{fontSize:13,color:'var(--acc3)',marginBottom:'1rem',fontWeight:600}}>¡Se recargaron! Recarga la página.</div>}
                 <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-                  <button onClick={()=>handleUpgrade('pro')} className="np-btn-primary" style={{fontSize:14,padding:'10px 20px'}}>
-                    ⚡ Pro ilimitado — $19/mes
-                  </button>
-                  <button onClick={()=>setTab('plans')} style={{padding:'10px 20px',borderRadius:24,fontSize:14,cursor:'pointer',border:'1px solid rgba(124,111,255,0.4)',background:'transparent',color:'var(--t1)',fontFamily:'var(--font-body)'}}>
-                    Ver todos los planes
-                  </button>
+                  <button onClick={()=>handleUpgrade('pro')} className="np-btn-primary" style={{fontSize:13,padding:'9px 18px'}}>⚡ Pro ilimitado — $19/mes</button>
+                  <button onClick={()=>setTab('plans')} style={{padding:'9px 18px',borderRadius:24,fontSize:13,cursor:'pointer',border:'1px solid rgba(124,111,255,0.4)',background:'transparent',color:'var(--t1)',fontFamily:'var(--font-body)'}}>Ver planes</button>
                 </div>
               </div>
             )}
 
-            {/* Banner FREE con búsquedas restantes (discreto) */}
-            {!isPro&&!noSearches&&(
-              <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderRadius:10,background:'rgba(124,111,255,0.06)',border:'0.5px solid rgba(124,111,255,0.15)',marginBottom:'1rem'}}>
-                <div style={{display:'flex',gap:4}}>
-                  {Array.from({length:5}).map((_,i)=>(
-                    <div key={i} style={{width:8,height:8,borderRadius:'50%',background:i<Number(remaining)?'var(--acc3)':'rgba(255,255,255,0.1)',transition:'background .3s'}}/>
-                  ))}
-                </div>
-                <div style={{fontSize:12,color:'var(--t2)'}}><strong style={{color:'var(--t1)'}}>{remaining}</strong> de 5 búsquedas restantes</div>
-                <button onClick={()=>setTab('plans')} style={{marginLeft:'auto',fontSize:11,color:'var(--acc)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-body)'}}>
-                  Ver Pro →
-                </button>
+            {/* Barra searches restantes (discreta) */}
+            {profileLoaded&&!isPro&&!noSearches&&(
+              <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',borderRadius:10,background:'rgba(124,111,255,0.06)',border:'0.5px solid rgba(124,111,255,0.12)',marginBottom:'1rem'}}>
+                <div style={{display:'flex',gap:3}}>{Array.from({length:5}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:'50%',background:i<Number(remaining)?'var(--acc3)':'rgba(255,255,255,0.1)'}}/>)}</div>
+                <div style={{fontSize:12,color:'var(--t2)'}}><strong style={{color:'var(--t1)'}}>{remaining}</strong> búsquedas restantes hoy</div>
+                <button onClick={()=>setTab('plans')} style={{marginLeft:'auto',fontSize:11,color:'var(--acc)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-body)'}}>Ver Pro →</button>
               </div>
             )}
 
             {/* Banner Pro → Agency */}
-            {isPro&&!isAgency&&(
+            {profileLoaded&&isPro&&!isAgency&&(
               <div style={{background:'linear-gradient(135deg,rgba(255,153,0,0.08),rgba(255,107,157,0.08))',border:'1px solid rgba(255,153,0,0.3)',borderRadius:12,padding:'10px 14px',marginBottom:'1.25rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-                <div>
-                  <div style={{fontSize:13,color:'var(--t1)',fontWeight:500}}>Estás en Pro ⚡</div>
-                  <div style={{fontSize:12,color:'var(--t2)',marginTop:2}}>Sube a Agency para análisis validados por expertos</div>
-                </div>
-                <button onClick={()=>handleUpgrade('agency')} className="np-btn-agency" style={{fontSize:12,padding:'7px 14px'}}>
-                  Subir →
-                </button>
+                <div><div style={{fontSize:13,color:'var(--t1)',fontWeight:500}}>Estás en Pro ⚡</div><div style={{fontSize:12,color:'var(--t2)',marginTop:2}}>Sube a Agency para análisis expert validados</div></div>
+                <button onClick={()=>handleUpgrade('agency')} className="np-btn-agency" style={{fontSize:12,padding:'7px 14px'}}>Subir →</button>
               </div>
             )}
 
@@ -412,19 +462,25 @@ export default function Dashboard() {
                 {isAgency?'🏆 Análisis expert — describe tu nicho':'Describe tu nicho o categoría'}
               </div>
               <div style={{display:'flex',gap:8,marginBottom:'.9rem',flexWrap:isMobile?'wrap':'nowrap'}}>
-                <input ref={null} className="np-input" value={query}
-                  onChange={e=>setQuery(e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&runSearch()}
-                  placeholder={isAgency?'ej: mascotas premium, tech sostenible...':'ej: mascotas, gadgets tech, yoga...'}
-                  style={{fontSize:isMobile?14:15}}
-                />
-                <div style={{display:'flex',gap:8,width:isMobile?'100%':'auto'}}>
-                  <select value={geo} onChange={e=>setGeo(e.target.value)}
-                    style={{background:'var(--c3)',border:'1px solid rgba(124,111,255,0.2)',borderRadius:8,color:'var(--t1)',fontSize:13,padding:'0 8px',cursor:'pointer',fontFamily:'var(--font-body)',flex:isMobile?1:'auto'}}>
-                    {GEOS.map(g=><option key={g.code} value={g.code}>{g.label}</option>)}
-                  </select>
+                <input className="np-input" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&runSearch()}
+                  placeholder={isAgency?'ej: mascotas premium, tech sostenible...':'ej: mascotas, gadgets tech, yoga...'} style={{fontSize:isMobile?14:15}}/>
+                <div style={{display:'flex',gap:8,width:isMobile?'100%':'auto',alignItems:'center'}}>
+                  {/* Selector región por continente */}
+                  <div style={{position:'relative',flex:isMobile?1:'auto',display:'flex',alignItems:'center',gap:6}}>
+                    <select value={geo} onChange={e=>setGeo(e.target.value)}
+                      style={{background:'var(--c3)',border:'1px solid rgba(124,111,255,0.2)',borderRadius:8,color:'var(--t1)',fontSize:12,padding:'0 10px',cursor:'pointer',fontFamily:'var(--font-body)',height:42,flex:isMobile?1:'auto',minWidth:isMobile?'auto':160}}>
+                      <option value="">🌍 Escoger región</option>
+                      {Object.entries(GEO_REGIONS).map(([continent,countries])=>(
+                        <optgroup key={continent} label={continent}>
+                          {countries.map(c=><option key={c.code} value={c.code}>{c.label}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {/* Badge moneda */}
+                    {geo&&<span style={{fontSize:11,color:'var(--acc3)',background:'rgba(0,229,195,0.1)',border:'0.5px solid rgba(0,229,195,0.3)',borderRadius:6,padding:'3px 7px',whiteSpace:'nowrap',flexShrink:0,fontWeight:600}}>{currency}</span>}
+                  </div>
                   <button onClick={()=>runSearch()} disabled={loading||!query.trim()||noSearches}
-                    style={{background:isAgency?'var(--g2)':'var(--g1)',color:'#fff',border:'none',padding:'0 18px',borderRadius:9,fontSize:14,fontWeight:600,cursor:loading||!query.trim()||noSearches?'not-allowed':'pointer',whiteSpace:'nowrap',opacity:loading||!query.trim()||noSearches?.5:1,fontFamily:'var(--font-body)',flex:isMobile?1:'auto',height:42,boxShadow:loading?'none':'0 4px 14px rgba(124,111,255,0.35)',transition:'all .2s'}}>
+                    style={{background:isAgency?'var(--g2)':'var(--g1)',color:'#fff',border:'none',padding:'0 18px',borderRadius:9,fontSize:14,fontWeight:600,cursor:loading||!query.trim()||noSearches?'not-allowed':'pointer',whiteSpace:'nowrap',opacity:loading||!query.trim()||noSearches?.5:1,fontFamily:'var(--font-body)',height:42,boxShadow:loading?'none':'0 4px 14px rgba(124,111,255,0.35)'}}>
                     {loading?'⏳':isAgency?'🏆 Analizar':'✦ Analizar'}
                   </button>
                 </div>
@@ -432,12 +488,7 @@ export default function Dashboard() {
               <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                 {FILTERS.map(f=>(
                   <button key={f.key} onClick={()=>setFilters(p=>({...p,[f.key]:!p[f.key]}))}
-                    style={{padding:isMobile?'4px 9px':'5px 12px',borderRadius:14,fontSize:isMobile?11:12,cursor:'pointer',
-                      border:`1px solid ${filters[f.key]?'rgba(124,111,255,0.6)':'rgba(255,255,255,0.08)'}`,
-                      background:filters[f.key]?'rgba(124,111,255,0.2)':'var(--c3)',
-                      color:filters[f.key]?'var(--acc)':'var(--t2)',
-                      fontFamily:'var(--font-body)',transition:'all .15s',fontWeight:filters[f.key]?500:400,
-                    }}>
+                    style={{padding:'4px 11px',borderRadius:14,fontSize:12,cursor:'pointer',border:`1px solid ${filters[f.key]?'rgba(124,111,255,0.6)':'rgba(255,255,255,0.08)'}`,background:filters[f.key]?'rgba(124,111,255,0.2)':'var(--c3)',color:filters[f.key]?'var(--acc)':'var(--t2)',fontFamily:'var(--font-body)',fontWeight:filters[f.key]?500:400,transition:'all .15s'}}>
                     {f.label}
                   </button>
                 ))}
@@ -445,21 +496,14 @@ export default function Dashboard() {
             </div>
 
             {/* Señales móvil */}
-            {isMobile&&(
-              <button onClick={()=>setShowTrends(v=>!v)}
-                style={{width:'100%',padding:'10px',borderRadius:10,fontSize:13,cursor:'pointer',border:'1px solid rgba(0,229,195,0.25)',background:'rgba(0,229,195,0.05)',color:'var(--acc3)',fontFamily:'var(--font-body)',marginBottom:'1rem',fontWeight:500}}>
-                📡 {showTrends?'Ocultar':'Ver'} señales en vivo
-              </button>
-            )}
+            {isMobile&&<button onClick={()=>setShowTrends(v=>!v)} style={{width:'100%',padding:'9px',borderRadius:10,fontSize:13,cursor:'pointer',border:'1px solid rgba(0,229,195,0.25)',background:'rgba(0,229,195,0.05)',color:'var(--acc3)',fontFamily:'var(--font-body)',marginBottom:'1rem',fontWeight:500}}>📡 {showTrends?'Ocultar':'Ver'} señales en vivo</button>}
             {isMobile&&showTrends&&<div style={{marginBottom:'1rem'}}><TrendsPanel geo={geo} onKeywordClick={kw=>runSearch(kw)}/></div>}
 
             {/* Error */}
             {error&&(
               <div style={{background:'rgba(255,60,104,0.1)',border:'1px solid rgba(255,107,157,0.3)',borderRadius:10,padding:'10px 14px',marginBottom:'1.25rem',fontSize:13,color:'#ff9dc0',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
                 <span>{error}</span>
-                <button onClick={()=>runSearch(lastQuery.current||query)} style={{background:'var(--g1)',color:'#fff',border:'none',padding:'5px 12px',borderRadius:8,fontSize:12,cursor:'pointer',fontFamily:'var(--font-body)',whiteSpace:'nowrap',fontWeight:600}}>
-                  Reintentar
-                </button>
+                <button onClick={()=>runSearch(lastQuery.current||query)} style={{background:'var(--g1)',color:'#fff',border:'none',padding:'5px 12px',borderRadius:8,fontSize:12,cursor:'pointer',fontFamily:'var(--font-body)',fontWeight:600}}>Reintentar</button>
               </div>
             )}
 
@@ -467,9 +511,7 @@ export default function Dashboard() {
             {loading&&(
               <div style={{textAlign:'center',padding:'3rem'}}>
                 <div style={{width:48,height:48,border:'3px solid rgba(124,111,255,0.2)',borderTopColor:'var(--acc)',borderRadius:'50%',animation:'spin .75s linear infinite',margin:'0 auto 1rem'}}/>
-                <div style={{color:'var(--t2)',fontSize:13}}>
-                  {isAgency?'🏆 Equipo experto validando nichos...':'✦ Claude AI analizando señales en tiempo real...'}
-                </div>
+                <div style={{color:'var(--t2)',fontSize:13}}>{isAgency?'🏆 Equipo experto validando nichos...':'✦ Analizando señales en tiempo real...'}</div>
               </div>
             )}
 
@@ -477,8 +519,8 @@ export default function Dashboard() {
             {!loading&&results.length>0&&(
               <div>
                 <div style={{fontSize:12,color:'var(--t3)',marginBottom:'.75rem',display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{width:8,height:8,borderRadius:'50%',background:'var(--acc3)',display:'inline-block',boxShadow:'0 0 6px var(--acc3)'}}/>
-                  {results.length} nichos{isAgency?' · validados por expertos':' · señales en vivo'}
+                  <span style={{width:7,height:7,borderRadius:'50%',background:'var(--acc3)',display:'inline-block',boxShadow:'0 0 6px var(--acc3)'}}/>
+                  {results.length} nichos{isAgency?' · expert':''} · Región: {GEO_MAP[geo]?.label??geo} · {currency}
                 </div>
                 <div style={{display:'grid',gap:12}}>
                   {results.map((n,i)=>{
@@ -487,10 +529,8 @@ export default function Dashboard() {
                     return(
                       <div key={i} className="card card-hover fade-up" onClick={()=>setSelected(n)}
                         style={{padding:'1.2rem',position:'relative',overflow:'hidden',animationDelay:`${i*.07}s`}}>
-                        {/* Borde superior gradiente */}
                         <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:isAgency?'var(--g2)':'var(--g1)'}}/>
                         {isAgency&&<div style={{position:'absolute',top:8,right:8,fontSize:10,background:'var(--g2)',color:'#fff',padding:'2px 7px',borderRadius:8,fontWeight:700}}>🏆 EXPERT</div>}
-
                         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:'.7rem'}}>
                           <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:'.92rem',paddingRight:isAgency?50:10}}>{n.name}</div>
                           <div style={{textAlign:'right',flexShrink:0}}>
@@ -498,12 +538,10 @@ export default function Dashboard() {
                             <div style={{fontSize:9,color:'var(--t3)'}}>Score</div>
                           </div>
                         </div>
-
                         <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:'.7rem'}}>
                           {n.tags.map(t=>{const[cls,lbl]=TAG_MAP[t]??['tag-trend',t];return<span key={t} className={`tag ${cls}`}>{lbl}</span>})}
-                          <span style={{fontSize:11,padding:'3px 8px',borderRadius:8,background:`${srcColor}20`,color:srcColor,border:`0.5px solid ${srcColor}40`,fontWeight:500}}>{srcLabel}</span>
+                          <span style={{fontSize:11,padding:'3px 7px',borderRadius:8,background:`${srcColor}20`,color:srcColor,border:`0.5px solid ${srcColor}40`,fontWeight:500}}>{srcLabel}</span>
                         </div>
-
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                           {[['Mercado',n.market_size,'rgba(124,111,255,0.1)'],['Margen',n.margin,'rgba(0,229,195,0.08)']].map(([k,v,bg])=>(
                             <div key={k} style={{background:bg,border:'0.5px solid rgba(255,255,255,0.06)',borderRadius:8,padding:'7px 10px'}}>
@@ -512,10 +550,8 @@ export default function Dashboard() {
                             </div>
                           ))}
                         </div>
-
-                        <div className="score-bar" style={{marginTop:10}}>
-                          <div className="score-fill" style={{width:`${n.profit_score}%`}}/>
-                        </div>
+                        <div className="score-bar" style={{marginTop:10}}><div className="score-fill" style={{width:`${n.profit_score}%`}}/></div>
+                        <div style={{fontSize:11,color:'var(--t3)',marginTop:6,textAlign:'right'}}>Pulsa para ver detalles →</div>
                       </div>
                     )
                   })}
@@ -531,7 +567,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Panel señales — escritorio */}
+          {/* Panel señales */}
           {!isMobile&&(
             <div style={{width:275,flexShrink:0,position:'sticky',top:70}}>
               <div style={{fontSize:11,color:'var(--acc3)',fontWeight:600,marginBottom:'.6rem',textTransform:'uppercase',letterSpacing:'.8px',display:'flex',alignItems:'center',gap:5}}>
@@ -544,23 +580,44 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* HISTORIAL */}
+      {/* HISTORIAL con paginación */}
       {tab==='history'&&(
         <div style={{flex:1,padding:isMobile?'1rem':'2rem 1.5rem',maxWidth:720,margin:'0 auto',width:'100%'}}>
-          <h2 style={{marginBottom:'1.5rem',fontWeight:800,background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Historial</h2>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.5rem'}}>
+            <h2 style={{fontWeight:800,background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Historial</h2>
+            {historyTotal>0&&<div style={{fontSize:12,color:'var(--t3)'}}>{historyTotal} búsquedas en total</div>}
+          </div>
           {history.length===0
             ?<div style={{textAlign:'center',color:'var(--t3)',padding:'3rem',fontSize:13}}>Sin búsquedas guardadas.</div>
-            :<div style={{display:'grid',gap:10}}>
-              {history.map((h,i)=>(
-                <div key={i} className="card card-hover" onClick={()=>{setResults(h.results);setTab('search')}}
-                  style={{padding:'1rem 1.25rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <div>
-                    <div style={{fontWeight:500,marginBottom:3,fontSize:14}}>"{h.query}"</div>
-                    <div style={{fontSize:12,color:'var(--t3)'}}>{h.results.length} nichos · {new Date(h.created_at).toLocaleDateString('es-ES')}</div>
+            :<div>
+              {GROUP_ORDER.filter(g=>historyGrouped[g]?.length).map(group=>(
+                <div key={group} style={{marginBottom:'1.5rem'}}>
+                  <div style={{fontSize:11,color:'var(--acc)',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',marginBottom:'.6rem',paddingLeft:4}}>{group}</div>
+                  <div style={{display:'grid',gap:8}}>
+                    {historyGrouped[group].map((h,i)=>(
+                      <div key={i} className="card card-hover" onClick={()=>{setResults(h.results);setTab('search')}}
+                        style={{padding:'.9rem 1.25rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div>
+                          <div style={{fontWeight:500,marginBottom:2,fontSize:13}}>"{h.query}"</div>
+                          <div style={{fontSize:11,color:'var(--t3)'}}>{h.results.length} nichos · {new Date(h.created_at).toLocaleString('es-ES',{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'})}</div>
+                        </div>
+                        <span style={{color:'var(--acc)',fontSize:16}}>→</span>
+                      </div>
+                    ))}
                   </div>
-                  <span style={{color:'var(--acc)',fontSize:18}}>→</span>
                 </div>
               ))}
+              {history.length<historyTotal&&(
+                <div style={{textAlign:'center',marginTop:'1rem'}}>
+                  <button onClick={()=>loadHistory(historyPage+1)}
+                    style={{padding:'9px 24px',borderRadius:20,fontSize:13,cursor:'pointer',border:'1px solid rgba(124,111,255,0.3)',background:'transparent',color:'var(--acc)',fontFamily:'var(--font-body)',fontWeight:500}}>
+                    Cargar más ({historyTotal-history.length} restantes)
+                  </button>
+                </div>
+              )}
+              {history.length>=50&&(
+                <div style={{textAlign:'center',marginTop:'1rem',fontSize:12,color:'var(--t3)'}}>Mostrando las últimas 50 búsquedas</div>
+              )}
             </div>
           }
         </div>
@@ -593,7 +650,7 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-          {[['🔗','Link único trackeado','Seguimiento en tiempo real.'],['💸','Ingresos recurrentes','Cobras cada mes que tu referido pague.'],['🎨','Kit de contenido','Templates para Reels, TikTok, YouTube.'],['💳','Pago vía PayPal, cripto o wire','Mínimo $50. El día 1 de cada mes.']].map(([icon,title,desc])=>(
+          {[['🔗','Link único trackeado','Seguimiento en tiempo real.'],['💸','Ingresos recurrentes','Cobras cada mes que tu referido pague.'],['🎨','Kit de contenido','Templates para Reels, TikTok, YouTube.'],['💳','PayPal, cripto o wire','Mínimo $50. El día 1 de cada mes.']].map(([icon,title,desc])=>(
             <div key={title as string} style={{background:'var(--c2)',border:'0.5px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'1rem 1.25rem',marginBottom:8,display:'flex',gap:'1rem',alignItems:'flex-start'}}>
               <div style={{fontSize:'1.3rem',flexShrink:0}}>{icon}</div>
               <div><div style={{fontWeight:600,marginBottom:2,fontSize:'.9rem'}}>{title}</div><div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{desc}</div></div>
@@ -605,34 +662,34 @@ export default function Dashboard() {
       {/* PLANES */}
       {tab==='plans'&&<PlansTab onUpgrade={handleUpgrade}/>}
 
-      {/* MODAL */}
+      {/* MODAL — info básica + links */}
       {selected&&(
         <div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:200,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',padding:isMobile?0:'1.5rem',overflowY:'auto',backdropFilter:'blur(4px)'}}>
           <div onClick={e=>e.stopPropagation()}
-            style={{width:'100%',maxWidth:isMobile?'100%':500,background:'var(--c2)',border:'1px solid rgba(124,111,255,0.25)',padding:'1.5rem',borderRadius:isMobile?'20px 20px 0 0':'20px',maxHeight:isMobile?'92vh':'none',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.5)',animation:'fadeUp .3s ease both'}}>
+            style={{width:'100%',maxWidth:isMobile?'100%':480,background:'var(--c2)',border:'1px solid rgba(124,111,255,0.25)',padding:'1.5rem',borderRadius:isMobile?'20px 20px 0 0':'20px',maxHeight:isMobile?'88vh':'none',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
 
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
               <div>
-                <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:'.95rem'}}>{selected.name}</div>
-                {isAgency&&<div style={{fontSize:11,color:'#ff9900',marginTop:2,fontWeight:600}}>🏆 Análisis validado por expertos</div>}
+                <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:'1rem'}}>{selected.name}</div>
+                {isAgency&&<div style={{fontSize:11,color:'#ff9900',marginTop:2,fontWeight:600}}>🏆 Análisis expert</div>}
               </div>
-              <button onClick={()=>setSelected(null)} style={{background:'var(--c3)',border:'none',color:'var(--t1)',width:32,height:32,borderRadius:'50%',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',fontWeight:800,color:scoreColor(selected.score),textShadow:scoreGlow(selected.score)}}>{selected.score}</div>
+                  <div style={{fontSize:9,color:'var(--t3)'}}>Score IA</div>
+                </div>
+                <button onClick={()=>setSelected(null)} style={{background:'var(--c3)',border:'none',color:'var(--t1)',width:32,height:32,borderRadius:'50%',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
+              </div>
             </div>
 
-            {isAgency&&selected.expert_verdict&&(
-              <div style={{background:'linear-gradient(135deg,rgba(255,153,0,0.1),rgba(255,107,157,0.08))',border:'1.5px solid rgba(255,153,0,0.4)',borderRadius:10,padding:'10px 14px',marginBottom:'1.25rem'}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',color:'#ff9900',marginBottom:4}}>🏆 Veredicto experto</div>
-                <div style={{fontSize:13,color:'var(--t1)',lineHeight:1.5}}>{selected.expert_verdict}</div>
-              </div>
-            )}
-            {isAgency&&selected.validated_roi&&(
-              <div style={{background:'rgba(0,229,195,0.08)',border:'0.5px solid rgba(0,229,195,0.35)',borderRadius:10,padding:'10px 14px',marginBottom:'1.25rem'}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',color:'var(--acc3)',marginBottom:4}}>💰 ROI validado</div>
-                <div style={{fontSize:13,color:'var(--t1)',lineHeight:1.5}}>{selected.validated_roi}</div>
-              </div>
-            )}
+            {/* Tags */}
+            <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:'1rem'}}>
+              {selected.tags.map(t=>{const[cls,lbl]=TAG_MAP[t]??['tag-trend',t];return<span key={t} className={`tag ${cls}`}>{lbl}</span>})}
+              <span style={{fontSize:11,padding:'3px 8px',borderRadius:8,background:'rgba(0,229,195,0.1)',color:'var(--acc3)',border:'0.5px solid rgba(0,229,195,0.3)',fontWeight:600}}>{currency}</span>
+            </div>
 
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:'1.25rem'}}>
+            {/* Métricas básicas */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:'1rem'}}>
               {[['Mercado',selected.market_size,'rgba(124,111,255,0.1)'],['Margen',selected.margin,'rgba(0,229,195,0.08)'],['Competencia',selected.competition,'rgba(255,209,102,0.08)'],['Tendencia',selected.trend,'rgba(255,107,157,0.08)']].map(([k,v,bg])=>(
                 <div key={k} style={{background:bg,border:'0.5px solid rgba(255,255,255,0.06)',borderRadius:8,padding:'8px 10px'}}>
                   <div style={{fontSize:13,fontWeight:600}}>{v}</div>
@@ -641,54 +698,67 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div style={{marginBottom:'1.25rem'}}>
-              <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>{isAgency?'Insights validados':'Insights IA'}</div>
-              {selected.insights.map((ins,i)=><div key={i} style={{background:'rgba(124,111,255,0.06)',borderRadius:8,padding:'.75rem',marginBottom:5,fontSize:13,color:'var(--t2)',borderLeft:'2px solid var(--acc)'}}>{ins}</div>)}
+            {/* Proveedores con links (Pro/Agency) */}
+            <div style={{marginBottom:'1rem'}}>
+              <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Proveedores</div>
+              {selected.suppliers.map((s,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'var(--c3)',borderRadius:8,padding:'.65rem 10px',marginBottom:5}}>
+                  <span style={{fontSize:13,fontWeight:500}}>{s.name}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:11,color:'var(--t2)'}}>{s.note}</span>
+                    {isPro&&(
+                      <a href={supplierUrl(s.name,selected.keywords[0]??selected.name)} target="_blank" rel="noopener noreferrer"
+                        onClick={e=>e.stopPropagation()}
+                        style={{fontSize:11,color:'var(--acc3)',background:'rgba(0,229,195,0.1)',border:'0.5px solid rgba(0,229,195,0.3)',borderRadius:5,padding:'2px 7px',textDecoration:'none',whiteSpace:'nowrap',fontWeight:500}}>
+                        Buscar →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!isPro&&<div style={{fontSize:12,color:'var(--t3)',textAlign:'center',padding:'6px',background:'rgba(124,111,255,0.05)',borderRadius:6}}>🔒 Links directos disponibles en Pro</div>}
             </div>
 
-            {selected.getting_started&&(
-              <div style={{marginBottom:'1.25rem'}}>
-                <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Cómo empezar</div>
-                {selected.getting_started.map((s,i)=><div key={i} style={{background:'rgba(0,229,195,0.06)',borderRadius:8,padding:'.75rem',marginBottom:5,fontSize:13,color:'var(--t2)',borderLeft:'2px solid var(--acc3)',display:'flex',gap:8}}><strong style={{color:'var(--acc3)',flexShrink:0}}>{i+1}.</strong><span>{s}</span></div>)}
+            {/* Keywords — solo Pro/Agency */}
+            {isPro?(
+              <div style={{marginBottom:'1rem'}}>
+                <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Keywords</div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{selected.keywords.map(k=><a key={k} href={`https://www.google.com/search?q=${encodeURIComponent(k)}+dropshipping`} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{background:'rgba(124,111,255,0.1)',border:'0.5px solid rgba(124,111,255,0.3)',borderRadius:7,padding:'3px 10px',fontSize:12,color:'var(--acc)',textDecoration:'none'}}>{k}</a>)}</div>
+              </div>
+            ):(
+              <div style={{marginBottom:'1rem',background:'rgba(124,111,255,0.05)',borderRadius:8,padding:'10px 12px',textAlign:'center'}}>
+                <div style={{fontSize:12,color:'var(--t3)'}}>🔒 Keywords y "Cómo empezar" disponibles en Pro</div>
               </div>
             )}
 
-            <div style={{marginBottom:'1.25rem'}}>
-              <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Proveedores</div>
-              {selected.suppliers.map((s,i)=>(
-                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'var(--c3)',borderRadius:8,padding:'.75rem',marginBottom:5}}>
-                  <span style={{fontSize:13,fontWeight:500}}>{s.name}</span><span style={{fontSize:11,color:'var(--acc3)'}}>{s.note}</span>
-                </div>
-              ))}
-            </div>
+            {/* Cómo empezar — solo Pro/Agency */}
+            {isPro&&selected.getting_started&&(
+              <div style={{marginBottom:'1rem'}}>
+                <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Cómo empezar</div>
+                {selected.getting_started.map((s,i)=><div key={i} style={{background:'rgba(0,229,195,0.06)',borderRadius:8,padding:'.65rem',marginBottom:4,fontSize:12,color:'var(--t2)',borderLeft:'2px solid var(--acc3)',display:'flex',gap:7}}><strong style={{color:'var(--acc3)',flexShrink:0}}>{i+1}.</strong><span>{s}</span></div>)}
+              </div>
+            )}
 
-            <div style={{marginBottom:'1.25rem'}}>
-              <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Keywords</div>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{selected.keywords.map(k=><span key={k} style={{background:'rgba(124,111,255,0.1)',border:'0.5px solid rgba(124,111,255,0.3)',borderRadius:7,padding:'3px 10px',fontSize:12,color:'var(--acc)'}}>{k}</span>)}</div>
+            {/* Botones finales */}
+            <div style={{fontSize:12,color:'var(--t3)',textAlign:'center',marginBottom:'1rem'}}>
+              {isPro?'El análisis completo (insights, riesgos, público, ROI) está en el PDF':'Actualiza para acceder al análisis completo'}
             </div>
-
-            <div style={{marginBottom:'1.25rem'}}>
-              <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Canales</div>
-              <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>{selected.ad_channels.map(ch=><span key={ch} className="tag tag-trend">{ch}</span>)}</div>
-            </div>
-
             {isPro?(
-              <button onClick={()=>exportPDF(selected,profile?.plan??'pro')}
+              <button onClick={()=>exportPDF(selected,profile?.plan??'pro',currency)}
                 style={{width:'100%',padding:12,borderRadius:10,border:'none',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,fontWeight:600,color:'#fff',background:isAgency?'var(--g2)':'var(--g1)',boxShadow:isAgency?'0 4px 14px rgba(255,153,0,0.35)':'0 4px 14px rgba(124,111,255,0.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                ⬇ Descargar PDF{isAgency?' Expert':''}
+                ⬇ Análisis completo en PDF{isAgency?' Expert':''}
               </button>
             ):(
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:13,color:'var(--t2)',marginBottom:'.75rem'}}>Actualiza a Pro para exportar PDF</div>
-                <button onClick={()=>{setSelected(null);handleUpgrade('pro')}} className="np-btn-primary" style={{width:'100%',justifyContent:'center'}}>✦ Subir a Pro — $19/mes</button>
-              </div>
+              <button onClick={()=>{setSelected(null);handleUpgrade('pro')}} className="np-btn-primary" style={{width:'100%',justifyContent:'center'}}>
+                ✦ Subir a Pro — $19/mes
+              </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Badge Agency — responsive */}
-      {isAgency&&(
+      {/* Badge Agency */}
+      {profileLoaded&&isAgency&&(
         <div onClick={()=>setTab('plans')}
           style={{position:'fixed',...(isMobile?{bottom:16,left:'50%',transform:'translateX(-50%)'}:{top:70,right:16}),background:'var(--g2)',color:'#fff',padding:isMobile?'8px 18px':'6px 14px',borderRadius:20,fontSize:isMobile?13:12,fontWeight:700,cursor:'pointer',zIndex:50,boxShadow:'0 4px 14px rgba(255,153,0,0.45)',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',userSelect:'none' as const}}>
           🏆 <span>{isMobile?'Plan Agency':'Agency'}</span><span style={{opacity:.75,fontSize:10}}>· Ver plan</span>

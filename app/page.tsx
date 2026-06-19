@@ -3,119 +3,46 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 const TEXTS = {
-  es: {
-    eyebrow: 'IA · Google Trends · TikTok · Amazon · 180+ países',
-    title1: 'El radar de nichos',
-    title2: 'dropshipping',
-    title3: 'más preciso del mundo',
-    sub: 'Claude AI cruza señales de Google Trends, TikTok Shop y Amazon Movers en tiempo real para encontrar nichos rentables antes que nadie.',
-    cta: 'Iniciar sesión',
-    ctaSub: 'Plan gratuito disponible · Sin tarjeta de crédito',
-    plans: 'Ver planes →',
-    f1: '✓ 5 búsquedas gratis al día',
-    f2: '✓ Sin tarjeta de crédito',
-    f3: '✓ Funciona en 180+ países',
-  },
-  en: {
-    eyebrow: 'AI · Google Trends · TikTok · Amazon · 180+ countries',
-    title1: 'The most precise',
-    title2: 'dropshipping niche',
-    title3: 'radar in the world',
-    sub: 'Claude AI cross-references Google Trends, TikTok Shop and Amazon Movers in real time to find profitable niches before anyone else.',
-    cta: 'Sign in',
-    ctaSub: 'Free plan available · No credit card required',
-    plans: 'View plans →',
-    f1: '✓ 5 free searches per day',
-    f2: '✓ No credit card',
-    f3: '✓ Works in 180+ countries',
-  },
-  pt: {
-    eyebrow: 'IA · Google Trends · TikTok · Amazon · 180+ países',
-    title1: 'O radar de nichos',
-    title2: 'dropshipping',
-    title3: 'mais preciso do mundo',
-    sub: 'Claude AI cruza sinais do Google Trends, TikTok Shop e Amazon Movers em tempo real para encontrar nichos lucrativos.',
-    cta: 'Entrar',
-    ctaSub: 'Plano gratuito disponível · Sem cartão de crédito',
-    plans: 'Ver planos →',
-    f1: '✓ 5 pesquisas grátis por dia',
-    f2: '✓ Sem cartão de crédito',
-    f3: '✓ Funciona em 180+ países',
-  },
-  fr: {
-    eyebrow: 'IA · Google Trends · TikTok · Amazon · 180+ pays',
-    title1: 'Le radar de niches',
-    title2: 'dropshipping',
-    title3: 'le plus précis au monde',
-    sub: "Claude AI croise les signaux de Google Trends, TikTok Shop et Amazon Movers en temps réel pour trouver des niches rentables.",
-    cta: 'Se connecter',
-    ctaSub: 'Plan gratuit disponible · Sans carte de crédit',
-    plans: 'Voir les plans →',
-    f1: '✓ 5 recherches gratuites par jour',
-    f2: '✓ Sans carte de crédit',
-    f3: '✓ Fonctionne dans 180+ pays',
-  },
-  de: {
-    eyebrow: 'KI · Google Trends · TikTok · Amazon · 180+ Länder',
-    title1: 'Der präziseste',
-    title2: 'Dropshipping-Nischen',
-    title3: 'Radar der Welt',
-    sub: 'Claude AI verknüpft Google Trends, TikTok Shop und Amazon Movers Signale in Echtzeit, um profitable Nischen zu finden.',
-    cta: 'Anmelden',
-    ctaSub: 'Kostenloser Plan verfügbar · Keine Kreditkarte',
-    plans: 'Pläne ansehen →',
-    f1: '✓ 5 kostenlose Suchen pro Tag',
-    f2: '✓ Keine Kreditkarte',
-    f3: '✓ Funktioniert in 180+ Ländern',
-  },
+  es:{ title1:'El radar de nichos',   title2:'dropshipping',           title3:'más preciso del mundo', sub:'Claude AI cruza señales de mercado en tiempo real para encontrar nichos rentables antes que nadie.', cta:'Iniciar sesión', ctaSub:'Plan gratuito disponible · Sin tarjeta', plans:'Ver planes →', features:['✓ 5 búsquedas gratis al día','✓ Sin tarjeta de crédito','✓ 180+ países disponibles'] },
+  en:{ title1:'The most precise',     title2:'dropshipping niche',     title3:'radar in the world',    sub:'Claude AI cross-references real-time market signals to find profitable niches before anyone else.',  cta:'Sign in',       ctaSub:'Free plan available · No credit card', plans:'View plans →',  features:['✓ 5 free searches per day','✓ No credit card','✓ 180+ countries'] },
+  pt:{ title1:'O radar de nichos',    title2:'dropshipping',           title3:'mais preciso do mundo', sub:'Claude AI cruza sinais de mercado em tempo real para encontrar nichos lucrativos antes de todos.',    cta:'Entrar',        ctaSub:'Plano gratuito disponível · Sem cartão', plans:'Ver planos →',  features:['✓ 5 pesquisas grátis por dia','✓ Sem cartão','✓ 180+ países'] },
+  fr:{ title1:'Le radar de niches',   title2:'dropshipping',           title3:'le plus précis au monde',sub:"Claude AI croise des signaux de marché en temps réel pour trouver des niches rentables.",           cta:'Se connecter',  ctaSub:'Plan gratuit disponible · Sans carte', plans:'Voir plans →',   features:['✓ 5 recherches gratuites/jour','✓ Sans carte de crédit','✓ 180+ pays'] },
+  de:{ title1:'Der präziseste',        title2:'Dropshipping-Nischen',   title3:'Radar der Welt',         sub:'Claude AI verknüpft Echtzeit-Marktsignale, um profitable Nischen zu finden.',                       cta:'Anmelden',      ctaSub:'Kostenloser Plan · Keine Kreditkarte', plans:'Pläne ansehen →',features:['✓ 5 kostenlose Suchen/Tag','✓ Keine Kreditkarte','✓ 180+ Länder'] },
 }
 
 export default function Home() {
   const [t, setT] = useState(TEXTS.es)
-
   useEffect(() => {
-    const lang = navigator.language.toLowerCase().slice(0, 2)
-    const map: Record<string, keyof typeof TEXTS> = {
-      es: 'es', en: 'en', pt: 'pt', fr: 'fr', de: 'de',
-    }
-    setT(TEXTS[map[lang] ?? 'es'])
+    const lang = navigator.language.toLowerCase().slice(0,2)
+    setT(TEXTS[lang as keyof typeof TEXTS] ?? TEXTS.es)
   }, [])
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center', background: 'var(--c1)' }}>
+    <main style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'2rem', textAlign:'center', background:'var(--c1)', position:'relative', overflow:'hidden' }}>
+      {/* Blobs */}
+      <div style={{ position:'absolute', top:'-15%', left:'-10%', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle,rgba(124,111,255,0.1) 0%,transparent 70%)', pointerEvents:'none' }}/>
+      <div style={{ position:'absolute', bottom:'-15%', right:'-10%', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,107,157,0.08) 0%,transparent 70%)', pointerEvents:'none' }}/>
 
-      <div style={{ fontSize: 11, letterSpacing: '2px', color: 'var(--acc3)', textTransform: 'uppercase', fontWeight: 500, marginBottom: '1rem' }}>
-        {t.eyebrow}
-      </div>
+      <div style={{ position:'relative', zIndex:1, maxWidth:700, width:'100%' }}>
+        <h1 style={{ fontSize:'clamp(2rem,6vw,4.5rem)', fontWeight:800, lineHeight:1.05, letterSpacing:'-2px', marginBottom:'1.25rem' }}>
+          {t.title1}<br/>
+          <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>{t.title2}</span><br/>
+          {t.title3}
+        </h1>
+        <p style={{ color:'var(--t2)', fontSize:'1.05rem', maxWidth:480, margin:'0 auto 2.5rem', lineHeight:1.7 }}>{t.sub}</p>
 
-      <h1 style={{ fontSize: 'clamp(2rem,6vw,4.5rem)', fontWeight: 800, lineHeight: 1.05, letterSpacing: '-2px', marginBottom: '1.25rem', maxWidth: 700 }}>
-        {t.title1}<br />
-        <span style={{ color: 'var(--acc)' }}>{t.title2}</span><br />
-        {t.title3}
-      </h1>
-
-      <p style={{ color: 'var(--t2)', fontSize: '1.05rem', maxWidth: 520, lineHeight: 1.7, marginBottom: '2.5rem' }}>
-        {t.sub}
-      </p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: '2.5rem' }}>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link href="/auth/login" className="np-btn-primary" style={{ fontSize: '1.05rem', padding: '14px 36px', textDecoration: 'none' }}>
-            {t.cta}
-          </Link>
-          <Link href="/pricing" className="np-btn-outline" style={{ fontSize: '1rem', padding: '14px 28px' }}>
-            {t.plans}
-          </Link>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, marginBottom:'2rem' }}>
+          <div style={{ display:'flex', gap:14, flexWrap:'wrap', justifyContent:'center' }}>
+            <Link href="/auth/login" className="np-btn-primary" style={{ fontSize:'1.05rem', padding:'14px 36px', textDecoration:'none' }}>{t.cta}</Link>
+            <Link href="/pricing" className="np-btn-outline" style={{ fontSize:'1rem', padding:'14px 28px' }}>{t.plans}</Link>
+          </div>
+          <div style={{ fontSize:12, color:'var(--t3)' }}>{t.ctaSub}</div>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--t3)' }}>{t.ctaSub}</div>
-      </div>
 
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {[t.f1, t.f2, t.f3].map(f => (
-          <span key={f} style={{ fontSize: 13, color: 'var(--acc3)' }}>{f}</span>
-        ))}
+        <div style={{ display:'flex', gap:20, flexWrap:'wrap', justifyContent:'center' }}>
+          {t.features.map(f=><span key={f} style={{ fontSize:13, color:'var(--acc3)' }}>{f}</span>)}
+        </div>
       </div>
-
     </main>
   )
 }

@@ -129,7 +129,7 @@ export async function getTrends(geo = 'US', force = false): Promise<AggregatedTr
 
   const [google, tiktok, amazon] = await Promise.all([fetchGoogle(geo), fetchTikTok(geo), fetchAmazon(geo)])
   const now = new Date().toISOString()
-  const expires = new Date(Date.now() + 6 * 3600_000).toISOString()
+  const expires = new Date(Date.now() + 24 * 3600_000).toISOString()
 
   await db.from('trends_cache').upsert({ cache_key: key, source: 'all', geo, category: 'all', signals: { google, tiktok, amazon }, fetched_at: now, expires_at: expires })
   return { google, tiktok, amazon, fetched_at: now, from_cache: false }

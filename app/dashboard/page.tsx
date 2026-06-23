@@ -213,9 +213,9 @@ function useCountdown(profile:Profile|null):string{
 }
 
 // ── Planes inline ─────────────────────────────────────────────
-function PlansTab({onUpgrade}:{onUpgrade:(p:'pro'|'agency')=>void}){
+function PlansTab({onUpgrade,currentPlan='free'}:{onUpgrade:(p:'pro'|'agency')=>void;currentPlan?:string}){
   const PLANS=[
-    {key:'free' as const,name:'Free',price:'$0',period:'/ siempre',grad:'',features:['5 búsquedas / día','Top 3 nichos','Score IA','❌ Análisis completo','❌ PDF exportable','❌ Links a proveedores'],cta:'Plan actual',dis:true},
+    {key:'free' as const,name:'Free',price:'$0',period:'/ siempre',grad:'',features:['5 búsquedas / día','Top 3 nichos','Score IA','❌ Análisis completo','❌ PDF exportable','❌ Links a proveedores'],cta:'Empezar gratis',dis:false},
     {key:'pro' as const,name:'Pro',price:'$19',period:'/ mes',grad:'var(--g1)',features:['Búsquedas ilimitadas','Top 8 nichos','Análisis completo en PDF','✓ Links directos a proveedores','✓ Keywords y cómo empezar','✓ Señales en vivo'],cta:'Subir a Pro',dis:false},
     {key:'agency' as const,name:'Agency',price:'$79',period:'/ mes',grad:'var(--g2)',features:['Todo en Pro','Análisis Expert validado','Veredicto equipo experto','ROI validado 90 días','Hasta 10 usuarios','API + white-label'],cta:'Subir a Agency',dis:false},
   ]
@@ -229,9 +229,10 @@ function PlansTab({onUpgrade}:{onUpgrade:(p:'pro'|'agency')=>void}){
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,marginBottom:'2rem'}}>
         {PLANS.map(p=>(
-          <div key={p.key} style={{background:'var(--c2)',border:`1px solid ${p.key==='pro'?'rgba(124,111,255,0.5)':p.key==='agency'?'rgba(255,153,0,0.5)':'rgba(255,255,255,0.08)'}`,borderRadius:16,padding:'1.5rem',position:'relative',boxShadow:p.key==='pro'?'0 0 30px rgba(124,111,255,0.1)':p.key==='agency'?'0 0 30px rgba(255,153,0,0.1)':'none'}}>
-            {p.key==='pro'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g1)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(124,111,255,0.4)'}}>⚡ Más popular</div>}
-            {p.key==='agency'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g2)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap'}}>🏆 Expert</div>}
+          <div key={p.key} style={{background:'var(--c2)',border:`${p.key===currentPlan?'2px solid rgba(0,229,195,0.6)':'1px solid '+(p.key==='pro'?'rgba(124,111,255,0.5)':p.key==='agency'?'rgba(255,153,0,0.5)':'rgba(255,255,255,0.08)')}`,borderRadius:16,padding:'1.5rem',position:'relative',boxShadow:p.key===currentPlan?'0 0 30px rgba(0,229,195,0.15)':p.key==='pro'?'0 0 30px rgba(124,111,255,0.1)':p.key==='agency'?'0 0 30px rgba(255,153,0,0.1)':'none'}}>
+            {p.key===currentPlan&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'linear-gradient(135deg,#00b894,#00e5c3)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(0,229,195,0.4)'}}>✓ Tu plan actual</div>}
+            {p.key==='pro'&&currentPlan!=='pro'&&currentPlan!=='agency'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g1)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap',boxShadow:'0 2px 8px rgba(124,111,255,0.4)'}}>⚡ Más popular</div>}
+            {p.key==='agency'&&currentPlan!=='agency'&&<div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'var(--g2)',color:'#fff',fontSize:11,fontWeight:700,padding:'3px 16px',borderRadius:10,whiteSpace:'nowrap'}}>🏆 Expert</div>}
             <div style={{fontFamily:'var(--font-display)',fontWeight:700,marginBottom:'.25rem'}}>{p.name}</div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'2.25rem',fontWeight:800,lineHeight:1,marginBottom:'.75rem',background:p.grad||'none',WebkitBackgroundClip:p.grad?'text':'none',WebkitTextFillColor:p.grad?'transparent':'var(--t1)'}}>
               {p.price}<span style={{fontSize:13,fontWeight:400,color:'var(--t3)',WebkitTextFillColor:'var(--t3)'}}> {p.period}</span>
@@ -244,12 +245,21 @@ function PlansTab({onUpgrade}:{onUpgrade:(p:'pro'|'agency')=>void}){
                 </li>
               ))}
             </ul>
-            <button onClick={()=>!p.dis&&onUpgrade(p.key as 'pro'|'agency')} disabled={p.dis}
-              style={{width:'100%',padding:11,borderRadius:9,fontSize:14,fontWeight:600,cursor:p.dis?'default':'pointer',fontFamily:'var(--font-body)',border:'none',
-                background:p.dis?'var(--c3)':p.grad||'var(--acc)',color:p.dis?'var(--t3)':'#fff',
-                opacity:p.dis?.6:1,boxShadow:p.dis?'none':p.key==='pro'?'0 4px 14px rgba(124,111,255,0.35)':'0 4px 14px rgba(255,153,0,0.35)'}}>
-              {p.cta}
-            </button>
+            {(()=>{
+              const isCurrent=p.key===currentPlan
+              const isLower=(p.key==='free'&&currentPlan!=='free')||(p.key==='pro'&&currentPlan==='agency')
+              return(
+                <button onClick={()=>{ if(!isCurrent&&!isLower&&p.key!=='free') onUpgrade(p.key as 'pro'|'agency') }} disabled={isCurrent||isLower}
+                  style={{width:'100%',padding:11,borderRadius:9,fontSize:14,fontWeight:600,
+                    cursor:isCurrent||isLower?'default':'pointer',
+                    fontFamily:'var(--font-body)',border:'none',
+                    background:isCurrent?'linear-gradient(135deg,#00b894,#00e5c3)':isLower?'var(--c3)':p.grad||'var(--acc)',
+                    color:isLower?'var(--t3)':'#fff',opacity:isLower?.4:1,
+                    boxShadow:isCurrent?'0 4px 14px rgba(0,229,195,0.35)':isLower?'none':p.key==='pro'?'0 4px 14px rgba(124,111,255,0.35)':'0 4px 14px rgba(255,153,0,0.35)'}}>
+                  {isCurrent?'✓ Tu plan actual':isLower?'Plan inferior':p.cta}
+                </button>
+              )
+            })()}
           </div>
         ))}
       </div>
@@ -660,7 +670,7 @@ export default function Dashboard() {
       )}
 
       {/* PLANES */}
-      {tab==='plans'&&<PlansTab onUpgrade={handleUpgrade}/>}
+      {tab==='plans'&&<PlansTab onUpgrade={handleUpgrade} currentPlan={profile?.plan??'free'}/>}
 
       {/* MODAL — info básica + links */}
       {selected&&(

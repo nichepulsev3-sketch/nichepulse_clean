@@ -12,16 +12,16 @@ import OpenAI    from 'openai'
 import { getTrends, buildTrendContext } from './trends'
 import type { NicheResult } from './supabase'
 
-const anthropic    = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY!, maxRetries: 0 })
-const openaiClient = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 })
+const anthropic    = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(), maxRetries: 0 })
+const openaiClient = process.env.OPENAI_API_KEY?.trim()
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY.trim(), maxRetries: 0 })
   : null
 
 // Modelos por plan y proveedor
 const AI_CONFIG = {
-  free:   { claude:'claude-haiku-4-5-20251001', openai: null,          tokens: 1500 },
-  pro:    { claude:'claude-haiku-4-5-20251001', openai:'gpt-4o-mini',  tokens: 2200 },
-  agency: { claude:'claude-sonnet-4-6',         openai:'gpt-4o',       tokens: 5000 },
+  free:   { claude:'claude-haiku-4-5-20251001', openai: null,          tokens: 2000 },
+  pro:    { claude:'claude-haiku-4-5-20251001', openai:'gpt-4o-mini',  tokens: 4096 },
+  agency: { claude:'claude-sonnet-4-6',         openai:'gpt-4o',       tokens: 6500 },
 }
 
 const CLAUDE_TIMEOUT_MS = 28000
@@ -46,7 +46,8 @@ function buildSystem(plan: string, trends: string): string {
   return `${intro}
 RESPONDE SOLO CON UN ARRAY JSON VÁLIDO. Sin texto antes ni después. Sin markdown.
 Estructura exacta por nicho: ${struct}
-Comillas dobles. Sin saltos de línea en strings. Datos realistas y específicos.${trends ? `\nSeñales en vivo (prioriza):\n${trends}` : ''}`
+REGLAS: Comillas dobles. Sin saltos de línea en strings. Datos realistas y específicos.
+SÉ CONCISO: cada insight/riesgo/paso máximo 12-15 palabras. target_audience y winning_angle máximo 20 palabras. Esto es OBLIGATORIO para que el JSON completo quepa en la respuesta — nunca dejes el array a medio cerrar.${trends ? `\nSeñales en vivo (prioriza):\n${trends}` : ''}`
 }
 
 // ── Parser JSON robusto ─────────────────────────────────────────
@@ -186,7 +187,7 @@ export async function searchNiches(
 ): Promise<NicheResult[]> {
   const cfg        = AI_CONFIG[plan as keyof typeof AI_CONFIG] ?? AI_CONFIG.pro
   const isAgency   = plan === 'agency'
-  const maxResults = plan === 'free' ? 3 : isAgency ? 5 : 8
+  const maxResults = plan === 'free' ? 3 : isAgency ? 5 : 6
 
   // Señales en vivo — timeout corto, no debe frenar la búsqueda
   let trendContext = ''

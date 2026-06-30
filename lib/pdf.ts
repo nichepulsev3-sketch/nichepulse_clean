@@ -155,10 +155,11 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     const h = lines.length * 4.5 + 6
     checkY(h + 4)
     setFill([240, 238, 255]); doc.roundedRect(MARGIN, Y, CW, h, 2, 2, 'F')
-    setFont(8, 'bold', PURPLE)
-    doc.setFontStyle('italic')
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bolditalic')
+    doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2])
     lines.forEach((l, i) => doc.text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
-    doc.setFontStyle('normal')
+    doc.setFont('helvetica', 'normal')
     Y += h + 5
   }
 

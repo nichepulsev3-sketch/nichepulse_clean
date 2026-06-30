@@ -1,183 +1,227 @@
+/**
+ * NichePulse — Motor Multi-IA
+ * Free:   Claude Haiku   (ultra rápido)
+ * Pro:    Haiku + GPT-4o-mini en carrera paralela (el más rápido gana)
+ * Agency: Sonnet + GPT-4o  en carrera paralela (mejor calidad)
+ */
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
 import { getTrends, buildTrendContext } from './trends'
 import type { NicheResult } from './supabase'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+const anthropic    = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const openaiClient = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null
 
-const CLAUDE_MODEL = {
-  free:   'claude-haiku-4-5-20251001',
-  pro:    'claude-sonnet-4-6',
-  agency: 'claude-sonnet-4-6',
+// Modelos por plan y proveedor
+const AI_CONFIG = {
+  free:   { claude:'claude-haiku-4-5-20251001', openai: null,          tokens: 2048 },
+  pro:    { claude:'claude-haiku-4-5-20251001', openai:'gpt-4o-mini',  tokens: 4096 },
+  agency: { claude:'claude-sonnet-4-6',         openai:'gpt-4o',       tokens: 8096 },
 }
-const MAX_TOKENS = { free: 2048, pro: 8096, agency: 8096 }
 
-const BASE_FIELDS = `{
-  "name": "nombre específico",
-  "score": 85,
-  "market_size": "$2.1B",
-  "margin": "45-60%",
-  "competition": "Baja",
-  "trend": "↑ 34% YoY",
-  "trend_pct": 34,
-  "profit_score": 72,
-  "tags": ["trending","low_comp"],
-  "insights": ["insight 1 con datos reales","insight 2 con demografía","insight 3 con plataformas"],
-  "suppliers": [{"name":"AliExpress","note":"Gran catálogo"},{"name":"Spocket","note":"Envío rápido EU"}],
-  "keywords": ["keyword1","keyword2","keyword3","keyword4"],
-  "ad_channels": ["TikTok Ads","Meta Ads","Google Shopping"],
-  "trend_source": "organic",
-  "target_audience": "Descripción detallada del comprador ideal",
-  "avg_ticket": "$35-65",
-  "seasonality": "Evergreen con pico en Navidad",
-  "risks": ["Riesgo 1","Riesgo 2","Riesgo 3"],
-  "getting_started": ["Paso 1 concreto","Paso 2 concreto","Paso 3 concreto"],
-  "winning_angle": "Ángulo diferenciador de marketing"
-}`
+// ── Sistema de prompts ─────────────────────────────────────────
+const JSON_STRUCT = `[
+  {
+    "name":"nombre específico del nicho",
+    "score":85,
+    "market_size":"$2.1B",
+    "margin":"45-60%",
+    "competition":"Baja",
+    "trend":"↑ 34% YoY",
+    "trend_pct":34,
+    "profit_score":72,
+    "tags":["trending","low_comp"],
+    "insights":["insight 1 con datos reales y cifras","insight 2 con demografía exacta","insight 3 con plataformas y ROI"],
+    "suppliers":[{"name":"AliExpress","note":"catálogo amplio, 15-30 días"},{"name":"Spocket","note":"proveedores EU, 3-7 días"}],
+    "keywords":["keyword volumen alto","keyword long-tail","keyword buyer intent","keyword comparativa"],
+    "ad_channels":["TikTok Ads","Meta Ads","Google Shopping"],
+    "trend_source":"organic",
+    "target_audience":"Perfil detallado: edad, nivel económico, plataformas, motivación de compra",
+    "avg_ticket":"$35-65",
+    "seasonality":"Evergreen con pico en Navidad y San Valentín",
+    "risks":["Riesgo específico 1","Riesgo específico 2","Riesgo específico 3"],
+    "getting_started":["Semana 1: acción concreta con presupuesto","Semana 2-3: validación con métricas","Mes 1: escala con KPIs objetivo"],
+    "winning_angle":"Propuesta de valor única basada en vacío real del mercado"
+  }
+]`
 
-const AGENCY_EXTRA = `,
-  "expert_verdict": "Veredicto del equipo experto con alta probabilidad de éxito ahora mismo",
-  "validated_roi": "ROI estimado en 90 días con inversión inicial de $500-1000 y condiciones necesarias"`
+const AGENCY_EXTRA = `,"expert_verdict":"Veredicto del equipo experto: por qué tiene alta probabilidad de éxito AHORA y cuándo entrar","validated_roi":"ROI estimado en 90 días con $500-1000 de inversión y condiciones necesarias"`
 
-const PRO_SYSTEM = `Eres NichePulse AI, analista experto en nichos de dropshipping.
-RESPONDE ÚNICAMENTE CON UN ARRAY JSON VÁLIDO. Sin texto fuera del array.
-Estructura: ${BASE_FIELDS}
-REGLAS: Comillas dobles. Sin saltos de línea dentro de strings. SOLO el array JSON.`
+const buildSystem = (plan: string, trends: string) => {
+  const isAgency = plan === 'agency'
+  const base = isAgency
+    ? `Eres un equipo élite de 5 expertos en dropshipping con 10+ años validando nichos millonarios. Tu análisis está VERIFICADO con datos de mercado reales. Máxima profundidad y precisión.`
+    : `Eres NichePulse Multi-IA, el motor de análisis de nichos de dropshipping más preciso del mercado.`
 
-const AGENCY_SYSTEM = `Eres un equipo de expertos en dropshipping con 10 años validando nichos millonarios.
-RESPONDE ÚNICAMENTE CON UN ARRAY JSON VÁLIDO. Sin texto fuera del array.
-Estructura: ${BASE_FIELDS.slice(0,-1)}${AGENCY_EXTRA}
+  const struct = isAgency
+    ? JSON_STRUCT.replace('"winning_angle":"Propuesta de valor única basada en vacío real del mercado"', `"winning_angle":"Propuesta de valor única basada en vacío real del mercado"${AGENCY_EXTRA}`)
+    : JSON_STRUCT
+
+  return `${base}
+RESPONDE ÚNICAMENTE CON UN ARRAY JSON VÁLIDO. CERO texto fuera del array. Sin markdown.
+
+Estructura requerida:
+${struct}
+
+REGLAS CRÍTICAS:
+- Comillas dobles siempre. Sin saltos de línea dentro de strings.
+- Datos REALES y VERIFICADOS, no genéricos.
+- Score > 85 solo si hay evidencia real de demanda alta y competencia baja.
+- Insights con cifras exactas cuando sea posible.
+${trends ? `\nSEÑALES EN VIVO (prioriza estos nichos):\n${trends}` : ''}`
 }
-REGLAS: Datos VERIFICADOS. Máxima profundidad. Comillas dobles. SOLO el array JSON.`
 
-function repairAndParse(text: string): any {
-  let s = text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim()
-  const st = s.indexOf('['), en = s.lastIndexOf(']')
-  if (st !== -1 && en > st) s = s.slice(st, en+1)
-  try { return JSON.parse(s) } catch {}
-  s = s.replace(/,(\s*[}\]])/g,'$1')
-  try { return JSON.parse(s) } catch {}
-  const lg = s.lastIndexOf('},')
-  if (lg !== -1) { try { return JSON.parse(s.slice(0,lg+1)+']') } catch {} }
-  // Intento con objeto raíz
-  try {
-    const m = s.match(/\{[\s\S]*\}/)
-    if (m) { const o = JSON.parse(m[0]); return o.niches??o.results??o.data??[o] }
-  } catch {}
+// ── Parser JSON ultra-robusto ──────────────────────────────────
+function parse(text: string): NicheResult[] | null {
+  const clean = text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim()
+
+  // Intentos en orden de probabilidad
+  const attempts = [
+    // 1. Directo
+    () => JSON.parse(clean),
+    // 2. Solo el array
+    () => { const s=clean.indexOf('['), e=clean.lastIndexOf(']'); if(s>=0&&e>s) return JSON.parse(clean.slice(s,e+1)) },
+    // 3. Sin comas finales
+    () => JSON.parse(clean.replace(/,(\s*[}\]])/g,'$1')),
+    // 4. Array limpiado sin comas finales
+    () => { const s=clean.indexOf('['), e=clean.lastIndexOf(']'); if(s>=0&&e>s) return JSON.parse(clean.slice(s,e+1).replace(/,(\s*[}\]])/g,'$1')) },
+    // 5. JSON cortado — eliminar último objeto incompleto
+    () => {
+      const s=clean.indexOf('['), e=clean.lastIndexOf(']')
+      if(s<0)return null
+      const partial = s>=0 && e>s ? clean.slice(s,e+1) : clean.slice(s)+']}' // forzar cierre
+      const lastGood = partial.lastIndexOf('},')
+      if(lastGood>0) return JSON.parse(partial.slice(0,lastGood+1)+']')
+    },
+    // 6. Objeto raíz con array dentro
+    () => { const m=clean.match(/\{[\s\S]*\}/); if(m){const o=JSON.parse(m[0]); return o.niches??o.results??o.data??[o]} },
+  ]
+
+  for (const attempt of attempts) {
+    try {
+      const result = attempt()
+      if (Array.isArray(result) && result.length > 0) return result as NicheResult[]
+      if (result && !Array.isArray(result)) return [result] as NicheResult[]
+    } catch {}
+  }
   return null
 }
 
-async function withClaude(system: string, userPrompt: string, plan: string): Promise<string> {
-  const model  = CLAUDE_MODEL[plan as keyof typeof CLAUDE_MODEL] ?? 'claude-sonnet-4-6'
-  const tokens = MAX_TOKENS[plan as keyof typeof MAX_TOKENS]     ?? 8096
-  const response = await anthropic.messages.create({
-    model, max_tokens: tokens, system,
-    messages: [{ role:'user', content:userPrompt }],
+// ── Llamadas individuales a cada IA ───────────────────────────
+async function callClaude(model: string, system: string, prompt: string, maxTokens: number): Promise<NicheResult[]> {
+  const start = Date.now()
+  const res = await anthropic.messages.create({
+    model, max_tokens: maxTokens, system,
+    messages: [{ role:'user', content:prompt }],
   })
-  return response.content.filter(b=>b.type==='text').map(b=>(b as any).text).join('')
+  const text = res.content.filter(b=>b.type==='text').map(b=>(b as any).text).join('')
+  const parsed = parse(text)
+  console.log(`[claude:${model.split('-')[1]}] ${Date.now()-start}ms → ${parsed?.length??0} nichos`)
+  if (!parsed) throw new Error('Claude: JSON inválido')
+  return parsed
 }
 
-async function withOpenAI(system: string, userPrompt: string): Promise<string> {
+async function callOpenAI(model: string, system: string, prompt: string): Promise<NicheResult[]> {
   if (!openaiClient) throw new Error('OpenAI no configurado')
-  const response = await openaiClient.chat.completions.create({
-    model: 'gpt-4o-mini',
-    max_tokens: 4096,
+  const start = Date.now()
+  const res = await openaiClient.chat.completions.create({
+    model, max_tokens: 4096,
     messages: [
-      { role:'system', content: system + '\nResponde SIEMPRE con un array JSON válido, sin texto extra.' },
-      { role:'user',   content: userPrompt },
+      { role:'system', content:`${system}\nResponde SIEMPRE con un array JSON válido y nada más.` },
+      { role:'user',   content: prompt },
     ],
-    response_format: { type:'json_object' },
+    temperature: 0.3,
   })
-  const raw = response.choices[0]?.message?.content ?? ''
-  // GPT devuelve objeto JSON, extraer el array
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) return JSON.stringify(parsed)
-    const arr = parsed.niches ?? parsed.results ?? parsed.data ?? parsed
-    return JSON.stringify(Array.isArray(arr) ? arr : [arr])
-  } catch {
-    return raw
-  }
+  const raw = res.choices[0]?.message?.content ?? ''
+  const parsed = parse(raw)
+  console.log(`[openai:${model}] ${Date.now()-start}ms → ${parsed?.length??0} nichos`)
+  if (!parsed) throw new Error('OpenAI: JSON inválido')
+  return parsed
 }
 
-async function fetchAI(system: string, userPrompt: string, plan: string): Promise<string> {
-  const isPaid = plan === 'pro' || plan === 'agency'
+// ── Motor de carrera: el más rápido y válido gana ─────────────
+async function race(promises: Promise<NicheResult[]>[]): Promise<NicheResult[]> {
+  // Envolver para capturar fallos individuales
+  const safePromises = promises.map(p =>
+    p.catch(e => { console.warn('[race] IA fallida:', e?.message); return null })
+  )
 
-  // Pro/Agency + OpenAI disponible → carrera paralela
-  if (isPaid && openaiClient) {
+  // Esperar al primero que devuelva resultado válido
+  return new Promise((resolve, reject) => {
+    let settled = 0
     let resolved = false
-    const claudeP = withClaude(system, userPrompt, plan)
-      .then(t => { if (!resolved) { resolved=true; console.log('[ai] ✓ Claude ganó la carrera'); } return t })
-      .catch(() => null)
-    const openaiP = withOpenAI(system, userPrompt)
-      .then(t => { if (!resolved) { resolved=true; console.log('[ai] ✓ OpenAI ganó la carrera'); } return t })
-      .catch(() => null)
 
-    const winner = await Promise.race([claudeP, openaiP])
-    if (winner) return winner
-
-    const [c, o] = await Promise.allSettled([claudeP, openaiP])
-    for (const r of [c,o]) {
-      if (r.status==='fulfilled' && r.value) return r.value
-    }
-    throw new Error('Ambas IAs fallaron. Inténtalo de nuevo.')
-  }
-
-  // Free o sin OpenAI → Claude Haiku (rápido) con retry
-  let lastErr: any
-  for (let attempt=1; attempt<=2; attempt++) {
-    try { return await withClaude(system, userPrompt, plan) }
-    catch (err: any) {
-      lastErr = err
-      if (err?.status===401 || err?.status===402) break
-      if (attempt < 2) await new Promise(r=>setTimeout(r,1500))
-    }
-  }
-
-  // Último recurso: OpenAI si está disponible
-  if (openaiClient) {
-    try { return await withOpenAI(system, userPrompt) } catch {}
-  }
-
-  const s = lastErr?.status
-  if (s===401) throw new Error('ANTHROPIC_API_KEY inválida. Compruébala en Railway → Variables.')
-  if (s===429) throw new Error('Límite de IA alcanzado. Espera 1 minuto.')
-  if (s===402 || lastErr?.message?.includes('credit'))
-    throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
-  throw new Error('Error conectando con la IA. Inténtalo de nuevo.')
+    safePromises.forEach(p => {
+      p.then(result => {
+        settled++
+        if (result && result.length > 0 && !resolved) {
+          resolved = true
+          resolve(result)
+        } else if (settled === safePromises.length && !resolved) {
+          reject(new Error('Todas las IAs fallaron. Inténtalo de nuevo.'))
+        }
+      })
+    })
+  })
 }
 
+// ── Función principal ─────────────────────────────────────────
 export async function searchNiches(
-  query: string, filters: Record<string,boolean>, plan: string, geo='US'
+  query: string,
+  filters: Record<string,boolean>,
+  plan: string,
+  geo = 'US'
 ): Promise<NicheResult[]> {
-  const isAgency   = plan==='agency'
-  const maxResults = plan==='free' ? 3 : isAgency ? 5 : 8
+  const cfg        = AI_CONFIG[plan as keyof typeof AI_CONFIG] ?? AI_CONFIG.pro
+  const isAgency   = plan === 'agency'
+  const maxResults = plan === 'free' ? 3 : isAgency ? 5 : 8
 
-  let trendContext=''
+  // Señales en vivo con timeout agresivo (2s)
+  let trendContext = ''
   try {
-    const r = await Promise.race([getTrends(geo), new Promise<null>(r=>setTimeout(()=>r(null),3000))])
-    if (r) trendContext = buildTrendContext(r)
+    const result = await Promise.race([
+      getTrends(geo),
+      new Promise<null>(r => setTimeout(() => r(null), 2000)),
+    ])
+    if (result) trendContext = buildTrendContext(result)
   } catch {}
 
   const filterDesc = Object.entries(filters).filter(([,v])=>v).map(([k])=>k).join(', ')
-  const baseSystem = isAgency ? AGENCY_SYSTEM : PRO_SYSTEM
-  const system     = trendContext ? `${baseSystem}\n\nSEÑALES EN VIVO:\n${trendContext}` : baseSystem
+  const system     = buildSystem(plan, trendContext)
   const userPrompt = `Consulta: "${query}"
-Filtros: ${filterDesc||'ninguno'} | País: ${geo} | Máximo: ${maxResults} | Fecha: ${new Date().toISOString().split('T')[0]}
-${isAgency?'MODO AGENCY: análisis expert con datos verificados.':''}
-Devuelve SOLO el array JSON. Nada más.`
+Filtros: ${filterDesc||'ninguno'} | País: ${geo} | Nichos a devolver: ${maxResults} | Fecha: ${new Date().toISOString().split('T')[0]}
+${isAgency?'MODO AGENCY EXPERT: máxima profundidad, datos verificados, ROI calculado.':''}
+Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por score. NADA más.`
 
-  console.log(`[ai] plan:${plan} haiku:${plan==='free'} openai:${!!openaiClient}`)
-  const text   = await fetchAI(system, userPrompt, plan)
-  const parsed = repairAndParse(text)
-  if (!parsed) {
-    console.error('[ai] JSON no parseable:', text.slice(0,300))
-    throw new Error('La IA devolvió un formato inesperado. Inténtalo de nuevo.')
+  // Construir lista de promesas según plan
+  const promises: Promise<NicheResult[]>[] = []
+
+  // Siempre incluir Claude
+  promises.push(callClaude(cfg.claude, system, userPrompt, cfg.tokens))
+
+  // Pro y Agency + OpenAI disponible → añadir a la carrera
+  if (cfg.openai && openaiClient) {
+    promises.push(callOpenAI(cfg.openai, system, userPrompt))
   }
-  const arr = Array.isArray(parsed) ? parsed : [parsed]
-  console.log(`[ai] ✅ ${arr.length} nichos`)
-  return arr.slice(0,maxResults) as NicheResult[]
+
+  console.log(`[multi-ia] plan:${plan} | IAs en carrera: ${promises.length} | geo:${geo}`)
+
+  try {
+    const results = await race(promises)
+    const final   = results.slice(0, maxResults)
+    console.log(`[multi-ia] ✅ ${final.length} nichos listos`)
+    return final
+  } catch (err: any) {
+    // Intentar parsear el error para dar un mensaje claro
+    const msg = err?.message ?? ''
+    if (msg.includes('401') || msg.includes('Incorrect API'))
+      throw new Error('Clave de IA inválida. Comprueba ANTHROPIC_API_KEY en Railway → Variables.')
+    if (msg.includes('429') || msg.includes('rate limit'))
+      throw new Error('Límite de IA alcanzado. Espera 1 minuto e inténtalo de nuevo.')
+    if (msg.includes('402') || msg.includes('credit'))
+      throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
+    throw new Error('Error en el motor Multi-IA. Inténtalo de nuevo.')
+  }
 }

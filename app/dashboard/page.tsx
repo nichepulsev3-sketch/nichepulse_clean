@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { downloadNichePDF } from '@/lib/pdf'
 import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile } from '@/lib/supabase'
 import TrendsPanel from '@/components/TrendsPanel'
 
@@ -127,73 +128,7 @@ function supplierUrl(name: string, keyword: string): string {
   return `https://www.google.com/search?q=${q}+dropshipping`
 }
 
-// ── PDF export ────────────────────────────────────────────────
-function exportPDF(n: NicheResult, plan: string, currency: string) {
-  const isAgency=plan==='agency'
-  const date=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})
-  const grad=isAgency?'linear-gradient(135deg,#ff9900,#ff6b9d)':'linear-gradient(135deg,#7c6fff,#ff6b9d)'
-  const accent=isAgency?'#ff9900':'#7c6fff'
-  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>NichePulse — ${n.name}</title>
-<style>@page{margin:15mm 18mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a2e;line-height:1.6;font-size:10.5pt}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-.hdr{background:${grad};color:#fff;padding:22px 28px;border-radius:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start}
-.hdr h1{font-size:17pt;font-weight:800;margin-bottom:4px}.sc{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-.m{background:#f5f5ff;border:1px solid #e0e0f5;border-radius:8px;padding:10px;text-align:center}.mv{font-size:12pt;font-weight:700;color:${accent}}.ml{font-size:8pt;color:#888;margin-top:2px}
-.sec{margin-bottom:14px}.st{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${accent};border-bottom:1.5px solid ${accent};padding-bottom:3px;margin-bottom:8px}
-.ins{background:#f5f5ff;border-left:3px solid ${accent};padding:6px 10px;margin-bottom:4px;border-radius:0 6px 6px 0;font-size:10pt}
-.risk{background:#fff5f5;border-left:3px solid #ff6b9d;padding:6px 10px;margin-bottom:4px;border-radius:0 6px 6px 0;font-size:10pt}
-.stp{background:#f0fff8;border-left:3px solid #00b894;padding:6px 10px;margin-bottom:4px;border-radius:0 6px 6px 0;font-size:10pt;display:flex;gap:8px}
-.srow{display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid #f0f0f5;font-size:10pt;align-items:center}
-.srow:last-child{border-bottom:none}.stable{border:1px solid #e0e0f5;border-radius:6px;overflow:hidden}
-.slink{color:${accent};font-size:9pt;text-decoration:none;background:#f0f0ff;border-radius:4px;padding:2px 7px}
-.tags{display:flex;flex-wrap:wrap;gap:5px}.tag{background:#eeeefd;color:${accent};border-radius:10px;padding:3px 10px;font-size:9pt;font-weight:500}
-.kws{display:flex;flex-wrap:wrap;gap:5px}.kw{background:#f0f0f0;color:#444;border-radius:5px;padding:3px 9px;font-size:9.5pt}
-.tc{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.ang{background:linear-gradient(135deg,#f0eeff,#fff0f5);border:1.5px solid #d0c8ff;border-radius:8px;padding:11px 14px;font-size:10.5pt;font-style:italic;color:#4a3f9f}
-${isAgency?`.exp{background:linear-gradient(135deg,#fff8e7,#fff5f0);border:2px solid ${accent};border-radius:10px;padding:14px 16px;font-size:10.5pt;font-weight:500;color:#663300;margin-bottom:14px}
-.expl{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${accent};margin-bottom:6px}
-.roi{background:#f0fff8;border:1.5px solid #00b894;border-radius:8px;padding:11px 14px;font-size:10.5pt;color:#085041;margin-bottom:14px}`:''}
-.footer{margin-top:20px;padding-top:8px;border-top:1px solid #e0e0f5;display:flex;justify-content:space-between;font-size:8.5pt;color:#aaa}
-.curr{display:inline-block;background:#f0fff8;color:#00b894;border-radius:6px;padding:2px 8px;font-size:9pt;font-weight:600;margin-left:6px}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <div style="font-size:8.5pt;font-weight:600;opacity:.7;margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">NICHEPULSE${isAgency?' · AGENCY EXPERT':' · PRO'}</div>
-    <h1>${n.name} <span class="curr">${currency}</span></h1>
-    <div style="font-size:9.5pt;opacity:.85;margin-top:4px">${n.competition} competencia · ${n.trend} · ${n.market_size}</div>
-    <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">${n.tags.map(t=>`<span style="background:rgba(255,255,255,.2);border-radius:10px;padding:2px 8px;font-size:8pt">${t}</span>`).join('')}</div>
-  </div>
-  <div class="sc"><div style="font-size:20pt;font-weight:800;line-height:1">${n.score}</div><div style="font-size:8pt;opacity:.8">Score IA</div></div>
-</div>
-<div class="metrics">
-  <div class="m"><div class="mv">${n.market_size}</div><div class="ml">Mercado global</div></div>
-  <div class="m"><div class="mv">${n.margin}</div><div class="ml">Margen</div></div>
-  <div class="m"><div class="mv">${n.avg_ticket??'N/D'}</div><div class="ml">Ticket (${currency})</div></div>
-  <div class="m"><div class="mv">${n.competition}</div><div class="ml">Competencia</div></div>
-</div>
-${isAgency&&n.expert_verdict?`<div class="exp"><div class="expl">🏆 Veredicto del equipo experto</div>${n.expert_verdict}</div>`:''}
-${isAgency&&n.validated_roi?`<div class="roi"><div style="font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#00b894;margin-bottom:5px">💰 ROI validado</div>${n.validated_roi}</div>`:''}
-${n.winning_angle?`<div class="sec"><div class="st">🎯 Ángulo ganador</div><div class="ang">"${n.winning_angle}"</div></div>`:''}
-${n.target_audience?`<div class="sec"><div class="st">👥 Público objetivo</div><div style="background:#f5f5ff;border-radius:8px;padding:10px 13px;font-size:10.5pt">${n.target_audience}</div></div>`:''}
-<div class="tc">
-  <div class="sec"><div class="st">💡 Insights</div>${n.insights.map(i=>`<div class="ins">${i}</div>`).join('')}</div>
-  <div class="sec"><div class="st">⚠️ Riesgos</div>${(n.risks??[]).map(r=>`<div class="risk">${r}</div>`).join('')}</div>
-</div>
-${n.getting_started?`<div class="sec"><div class="st">🚀 Cómo empezar</div>${n.getting_started.map((s,i)=>`<div class="stp"><span style="font-weight:700;color:#00b894;flex-shrink:0">${i+1}.</span><span>${s}</span></div>`).join('')}</div>`:''}
-<div class="tc">
-  <div class="sec"><div class="st">📦 Proveedores</div><div class="stable">${n.suppliers.map(s=>`<div class="srow"><strong>${s.name}</strong><span style="color:#888">${s.note}</span><a class="slink" href="${supplierUrl(s.name,n.keywords[0]??n.name)}" target="_blank">Buscar →</a></div>`).join('')}</div></div>
-  <div class="sec"><div class="st">📅 Estacionalidad</div><div style="background:#f5f5ff;border-radius:8px;padding:10px 13px;font-size:10pt">${n.seasonality??'Evergreen'}</div></div>
-</div>
-<div class="sec"><div class="st">🔍 Keywords principales</div><div class="kws">${n.keywords.map(k=>`<span class="kw">${k}</span>`).join('')}</div></div>
-<div class="sec"><div class="st">📢 Canales publicitarios</div><div class="tags">${n.ad_channels.map(c=>`<span class="tag">${c}</span>`).join('')}</div></div>
-<div class="footer"><span>Generado el ${date}${isAgency?' · Agency Expert':' · Pro'} · Moneda región: ${currency}</span><span style="font-weight:700;color:${accent}">NichePulse AI</span></div>
-<script>window.onload=function(){window.print()}<\/script>
-</body></html>`
-  const win=window.open('','_blank','width=920,height=720')
-  if(!win){alert('Activa las ventanas emergentes');return}
-  win.document.write(html); win.document.close()
-}
+// PDF generado por lib/pdf.ts
 
 // ── Countdown ─────────────────────────────────────────────────
 function useCountdown(profile:Profile|null):string{
@@ -306,12 +241,19 @@ export default function Dashboard() {
   const [historyPage,  setHistoryPage]  = useState(1)
   const [isMobile,     setIsMobile]     = useState(false)
   const [showTrends,   setShowTrends]   = useState(false)
+  const [pdfLoading,   setPdfLoading]   = useState(false)
+  const [isIOSDevice,  setIsIOSDevice]  = useState(false)
   const lastQuery = useRef('')
   const countdown = useCountdown(profile)
   const HIST_PER_PAGE = 10
   const currency = GEO_MAP[geo]?.currency ?? 'USD $'
 
   useEffect(()=>{ const c=()=>setIsMobile(window.innerWidth<768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c) },[])
+  useEffect(()=>{
+    const ua = navigator.userAgent
+    const ipadOS = ua.includes('Macintosh') && navigator.maxTouchPoints > 1
+    setIsIOSDevice(/iPad|iPhone|iPod/.test(ua) || ipadOS)
+  },[])
   useEffect(()=>{
     const p=new URLSearchParams(window.location.search)
     if(p.get('success')==='1'){
@@ -421,7 +363,7 @@ export default function Dashboard() {
                 <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>nicho perfecto</span>
               </h1>
               <p style={{color:'var(--t2)',fontSize:'0.85rem',lineHeight:1.6}}>
-                {isAgency?'Análisis validado por expertos con ROI garantizado':'Señales de mercado en tiempo real con Claude AI'}
+                {isAgency?'Multi-IA Expert · Análisis validado con ROI calculado':'Señales de mercado en tiempo real con Multi-motor de IA'}
               </p>
               {!isMobile&&(
                 <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:'1rem'}}>
@@ -491,7 +433,7 @@ export default function Dashboard() {
                   </div>
                   <button onClick={()=>runSearch()} disabled={loading||!query.trim()||noSearches}
                     style={{background:isAgency?'var(--g2)':'var(--g1)',color:'#fff',border:'none',padding:'0 18px',borderRadius:9,fontSize:14,fontWeight:600,cursor:loading||!query.trim()||noSearches?'not-allowed':'pointer',whiteSpace:'nowrap',opacity:loading||!query.trim()||noSearches?.5:1,fontFamily:'var(--font-body)',height:42,boxShadow:loading?'none':'0 4px 14px rgba(124,111,255,0.35)'}}>
-                    {loading?'⏳':isAgency?'🏆 Analizar':'✦ Analizar'}
+                    {loading?'⏳ Multi-IA...':isAgency?'🏆 Expert Analizar':'✦ Analizar'}
                   </button>
                 </div>
               </div>
@@ -521,7 +463,7 @@ export default function Dashboard() {
             {loading&&(
               <div style={{textAlign:'center',padding:'3rem'}}>
                 <div style={{width:48,height:48,border:'3px solid rgba(124,111,255,0.2)',borderTopColor:'var(--acc)',borderRadius:'50%',animation:'spin .75s linear infinite',margin:'0 auto 1rem'}}/>
-                <div style={{color:'var(--t2)',fontSize:13}}>{isAgency?'🏆 Equipo experto validando nichos...':'✦ Analizando señales en tiempo real...'}</div>
+                <div style={{color:'var(--t2)',fontSize:13}}>{isAgency?'🏆 Multi-IA Expert validando nichos...':'✦ Multi-motor de IA analizando...'}</div>
               </div>
             )}
 
@@ -561,7 +503,32 @@ export default function Dashboard() {
                           ))}
                         </div>
                         <div className="score-bar" style={{marginTop:10}}><div className="score-fill" style={{width:`${n.profit_score}%`}}/></div>
-                        <div style={{fontSize:11,color:'var(--t3)',marginTop:6,textAlign:'right'}}>Pulsa para ver detalles →</div>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8}}>
+                          <span style={{fontSize:11,color:'var(--t3)'}}>Pulsa para ver detalles →</span>
+                          {isPro&&(
+                            <button
+                              onClick={async(e)=>{
+                                e.stopPropagation()
+                                setPdfLoading(true)
+                                try { await downloadNichePDF(n,profile?.plan??'pro',currency) }
+                                catch(err){ console.error('[pdf]',err); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
+                                finally { setPdfLoading(false) }
+                              }}
+                              disabled={pdfLoading}
+                              title="Descargar PDF de este nicho"
+                              style={{
+                                display:'flex',alignItems:'center',gap:5,
+                                background:isAgency?'rgba(255,153,0,0.12)':'rgba(124,111,255,0.12)',
+                                border:`1px solid ${isAgency?'rgba(255,153,0,0.35)':'rgba(124,111,255,0.35)'}`,
+                                color:isAgency?'#ff9900':'var(--acc)',
+                                borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                cursor:pdfLoading?'wait':'pointer',fontFamily:'var(--font-body)',
+                                opacity:pdfLoading?.6:1,flexShrink:0,
+                              }}>
+                              {pdfLoading?'⏳':'⬇'} PDF
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
@@ -750,14 +717,30 @@ export default function Dashboard() {
             )}
 
             {/* Botones finales */}
-            <div style={{fontSize:12,color:'var(--t3)',textAlign:'center',marginBottom:'1rem'}}>
+            <div style={{fontSize:12,color:'var(--t3)',textAlign:'center',marginBottom:'.75rem'}}>
               {isPro?'El análisis completo (insights, riesgos, público, ROI) está en el PDF':'Actualiza para acceder al análisis completo'}
             </div>
             {isPro?(
-              <button onClick={()=>exportPDF(selected,profile?.plan??'pro',currency)}
-                style={{width:'100%',padding:12,borderRadius:10,border:'none',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,fontWeight:600,color:'#fff',background:isAgency?'var(--g2)':'var(--g1)',boxShadow:isAgency?'0 4px 14px rgba(255,153,0,0.35)':'0 4px 14px rgba(124,111,255,0.35)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                ⬇ Análisis completo en PDF{isAgency?' Expert':''}
-              </button>
+              <>
+                <button onClick={async()=>{
+                    setPdfLoading(true)
+                    try { await downloadNichePDF(selected,profile?.plan??'pro',currency) }
+                    catch(e){ console.error('[pdf]',e); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
+                    finally { setPdfLoading(false) }
+                  }}
+                  disabled={pdfLoading}
+                  style={{width:'100%',padding:14,borderRadius:12,border:'none',cursor:pdfLoading?'wait':'pointer',fontFamily:'var(--font-body)',fontSize:15,fontWeight:700,color:'#fff',background:isAgency?'var(--g2)':'var(--g1)',boxShadow:isAgency?'0 4px 16px rgba(255,153,0,0.4)':'0 4px 16px rgba(124,111,255,0.4)',display:'flex',alignItems:'center',justifyContent:'center',gap:8,opacity:pdfLoading?.7:1,transition:'all .2s'}}>
+                  {pdfLoading
+                    ? <><span style={{width:16,height:16,border:'2px solid rgba(255,255,255,0.4)',borderTopColor:'#fff',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Generando PDF...</>
+                    : <>⬇ Descargar PDF{isAgency?' Expert':' Pro'}</>
+                  }
+                </button>
+                {isIOSDevice&&(
+                  <div style={{fontSize:11,color:'var(--t3)',textAlign:'center',marginTop:8,lineHeight:1.5}}>
+                    📱 En iPhone/iPad se abrirá el menú de compartir — elige <strong>"Guardar en Archivos"</strong>
+                  </div>
+                )}
+              </>
             ):(
               <button onClick={()=>{setSelected(null);handleUpgrade('pro')}} className="np-btn-primary" style={{width:'100%',justifyContent:'center'}}>
                 ✦ Subir a Pro — $19/mes

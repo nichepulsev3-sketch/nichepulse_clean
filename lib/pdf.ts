@@ -246,8 +246,77 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     doc.text(`Pág ${i}/${totalPages}`, W - MARGIN, 291, { align: 'right' })
   }
 
-  // ── Descargar sin diálogo de impresión ────────────────────────
+  // ── Descarga multiplataforma (PC / Android / iOS) ─────────────
   const filename = `nichepulse-${plan}-${niche.name.replace(/\s+/g,'-').toLowerCase().slice(0,30)}.pdf`
-  doc.save(filename)
+  await triggerDownload(doc, filename)
   console.log(`[pdf] ✅ Descargado: ${filename}`)
+}
+
+// ── Detección de plataforma ──────────────────────────────────────
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  // iPad en iOS 13+ se identifica como Mac, se detecta por touch
+  const isIpadOS = ua.includes('Macintosh') && navigator.maxTouchPoints > 1
+  return /iPad|iPhone|iPod/.test(ua) || isIpadOS
+}
+
+function isAndroid(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Android/.test(navigator.userAgent)
+}
+
+// ── Descarga robusta: PC normal, Android via blob+anchor, iOS via Web Share ──
+async function triggerDownload(doc: any, filename: string) {
+  const blob = doc.output('blob') as Blob
+
+  // iOS Safari: doc.save() casi siempre falla o abre una pestaña en blanco.
+  // Usamos Web Share API (comparte/guarda en Archivos) como método principal,
+  // con fallback a abrir el PDF en una nueva pestaña si Share no está disponible.
+  if (isIOS()) {
+    const file = new File([blob], filename, { type: 'application/pdf' })
+    const nav = navigator as Navigator & {
+      share?: (data: { files?: File[]; title?: string }) => Promise<void>
+      canShare?: (data: { files?: File[] }) => boolean
+    }
+
+    if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+      try {
+        await nav.share({ files: [file], title: filename })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+        console.warn('[pdf] Share falló, usando fallback:', err)
+      }
+    }
+
+    // Fallback iOS: abrir el PDF en nueva pestaña — el usuario puede
+    // usar el botón "Compartir → Guardar en Archivos" desde el visor nativo
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (!win) {
+      // Si el navegador bloqueó la ventana emergente, forzar navegación directa
+      window.location.href = url
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+    return
+  }
+
+  // Android Chrome / navegadores móviles modernos: blob + <a download>
+  // funciona de forma fiable y descarga directamente a la carpeta Descargas
+  if (isAndroid()) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+    return
+  }
+
+  // PC / escritorio: doc.save() de jsPDF funciona perfectamente
+  doc.save(filename)
 }

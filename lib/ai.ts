@@ -21,12 +21,12 @@ const openaiClient = process.env.OPENAI_API_KEY?.trim()
 const AI_CONFIG = {
   free:   { claude:'claude-haiku-4-5-20251001', openai: null,          tokens: 2000 },
   pro:    { claude:'claude-haiku-4-5-20251001', openai:'gpt-4o-mini',  tokens: 4096 },
-  agency: { claude:'claude-sonnet-4-6',         openai:'gpt-4o',       tokens: 6500 },
+  agency: { claude:'claude-haiku-4-5-20251001', openai:'gpt-4o-mini',  tokens: 5000 },
 }
 
-const CLAUDE_TIMEOUT_MS = 28000
-const OPENAI_TIMEOUT_MS = 25000
-const RETRY_TIMEOUT_MS  = 28000
+const CLAUDE_TIMEOUT_MS = 25000
+const OPENAI_TIMEOUT_MS = 22000
+const RETRY_TIMEOUT_MS  = 25000
 
 // ── Estructura JSON compacta (menos tokens = respuestas más rápidas) ──
 const JSON_STRUCT_BASE = `[{"name":"nombre","score":85,"market_size":"$2.1B","margin":"45-60%","competition":"Baja","trend":"↑34% YoY","trend_pct":34,"profit_score":72,"tags":["trending","low_comp"],"insights":["insight 1 con cifras","insight 2 demografía","insight 3 plataformas"],"suppliers":[{"name":"AliExpress","note":"15-30 días"},{"name":"Spocket","note":"3-7 días EU"}],"keywords":["kw1","kw2","kw3","kw4"],"ad_channels":["TikTok Ads","Meta Ads"],"trend_source":"organic","target_audience":"perfil del comprador","avg_ticket":"$35-65","seasonality":"evergreen o estacional","risks":["riesgo 1","riesgo 2"],"getting_started":["paso 1","paso 2","paso 3"],"winning_angle":"ángulo único"}]`
@@ -151,6 +151,11 @@ async function callOpenAI(model: string, system: string, prompt: string, maxToke
       const causeMsg = err?.cause?.message ?? err?.cause?.code ?? 'desconocida'
       console.error(`[openai:${model}] ❌ Error de conexión tras ${ms}ms | causa: ${causeMsg} | revisa OPENAI_API_KEY o que Railway permita salida a api.openai.com`)
       throw new Error('OpenAI: error de conexión')
+    }
+    // 429 = sin crédito → no es error fatal, dejamos que Claude gane la carrera
+    if (err?.status === 429 || err?.message?.includes('quota') || err?.message?.includes('exceeded')) {
+      console.warn(`[openai:${model}] ⚠️ Sin crédito (429) tras ${ms}ms — continuando solo con Claude. Recarga crédito en platform.openai.com/settings/billing`)
+      throw new Error('OpenAI: sin crédito')
     }
     console.error(`[openai:${model}] ❌ ${ms}ms →`, err?.status, err?.message)
     throw err

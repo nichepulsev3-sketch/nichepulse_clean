@@ -329,7 +329,7 @@ export default function Dashboard() {
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--c1)'}}>
 
       {/* NAV */}
-      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'10px 12px':'12px 20px',borderBottom:'1px solid rgba(124,111,255,0.15)',position:'sticky',top:0,background:'rgba(8,8,15,0.96)',backdropFilter:'blur(16px)',zIndex:100,boxShadow:'0 1px 20px rgba(0,0,0,0.3)'}}>
+      <nav className='np-nav-sticky' style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'10px 12px':'12px 20px',borderBottom:'1px solid rgba(124,111,255,0.15)',position:'sticky',top:0,background:'rgba(8,8,15,0.96)',backdropFilter:'blur(16px)',zIndex:100,boxShadow:'0 1px 20px rgba(0,0,0,0.3)'}}>
         <div style={{fontFamily:'var(--font-display)',fontSize:isMobile?'1rem':'1.15rem',fontWeight:800,letterSpacing:'-0.5px',display:'flex',alignItems:'center',gap:6}}>
           <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>NichepulseV.3</span>
           {profileLoaded&&!isPro&&<span style={{background:'linear-gradient(90deg,var(--acc3),#00b4d8)',color:'#000',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>FREE</span>}
@@ -646,7 +646,7 @@ export default function Dashboard() {
       {selected&&(
         <div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:200,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',padding:isMobile?0:'1.5rem',overflowY:'auto',backdropFilter:'blur(4px)'}}>
           <div onClick={e=>e.stopPropagation()}
-            style={{width:'100%',maxWidth:isMobile?'100%':480,background:'var(--c2)',border:'1px solid rgba(124,111,255,0.25)',padding:'1.5rem',borderRadius:isMobile?'20px 20px 0 0':'20px',maxHeight:isMobile?'88vh':'none',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
+            className={isMobile?'np-modal-sheet':''} style={{width:'100%',maxWidth:isMobile?'100%':480,background:'var(--c2)',border:'1px solid rgba(124,111,255,0.25)',padding:'1.5rem',borderRadius:isMobile?'20px 20px 0 0':'20px',maxHeight:isMobile?'88vh':'none',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
 
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
               <div>
@@ -756,7 +756,7 @@ export default function Dashboard() {
       {/* Badge Agency */}
       {profileLoaded&&isAgency&&(
         <div onClick={()=>setTab('plans')}
-          style={{position:'fixed',...(isMobile?{bottom:16,left:'50%',transform:'translateX(-50%)'}:{top:70,right:16}),background:'var(--g2)',color:'#fff',padding:isMobile?'8px 18px':'6px 14px',borderRadius:20,fontSize:isMobile?13:12,fontWeight:700,cursor:'pointer',zIndex:50,boxShadow:'0 4px 14px rgba(255,153,0,0.45)',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',userSelect:'none' as const}}>
+          className='np-badge-float' style={{position:'fixed',...(isMobile?{left:'50%',transform:'translateX(-50%)'}:{top:70,right:16}),background:'var(--g2)',color:'#fff',padding:isMobile?'8px 18px':'6px 14px',borderRadius:20,fontSize:isMobile?13:12,fontWeight:700,cursor:'pointer',zIndex:50,boxShadow:'0 4px 14px rgba(255,153,0,0.45)',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',userSelect:'none' as const}}>
           🏆 <span>{isMobile?'Plan Agency':'Agency'}</span><span style={{opacity:.75,fontSize:10}}>· Ver plan</span>
         </div>
       )}

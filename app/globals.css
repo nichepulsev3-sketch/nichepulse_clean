@@ -192,3 +192,114 @@ h1, h2, h3, h4 { font-family: var(--font-display); }
   border: none !important;
   box-shadow: 0 2px 12px rgba(124,111,255,0.35);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE — Safe Areas & Platform-Specific Fixes
+   ══════════════════════════════════════════════════════════════ */
+
+/* Variables de safe area (rellena los valores reales del OS) */
+:root {
+  --sat: env(safe-area-inset-top,    0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left,   0px);
+  --sar: env(safe-area-inset-right,  0px);
+}
+
+/* Altura dinámica real de viewport (excluye barras del navegador en móvil) */
+html, body { height: 100%; }
+
+/* ── App en modo standalone (instalada como PWA) ── */
+@media all and (display-mode: standalone) {
+  /* El nav superior necesita respetar la barra de estado del SO */
+  .np-nav-sticky {
+    padding-top: calc(12px + var(--sat)) !important;
+  }
+  /* Cuerpo evita que contenido quede bajo la barra de inicio (iOS) */
+  body {
+    padding-bottom: var(--sab);
+  }
+}
+
+/* ── iOS específico: fuentes, scroll y tap ── */
+@supports (-webkit-touch-callout: none) {
+  /* Scroll suave nativo en iOS */
+  * { -webkit-overflow-scrolling: touch; }
+
+  /* Evitar zoom en inputs al hacer focus (iOS agranda texto automáticamente) */
+  input, select, textarea, button {
+    font-size: max(16px, 1em) !important;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Fuentes renderizadas más nítidas en Retina */
+  body { -webkit-font-smoothing: antialiased; }
+
+  /* Quitar highlight azul al tocar en iOS */
+  * { -webkit-tap-highlight-color: transparent; }
+
+  /* Modal bottom-sheet en iOS: safe area en la parte inferior */
+  .np-modal-sheet {
+    padding-bottom: calc(1.5rem + var(--sab)) !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+
+  /* Badge flotante: separar de la barra de inicio de iPhone */
+  .np-badge-float {
+    bottom: calc(16px + var(--sab)) !important;
+  }
+
+  /* Banner PWA: separar de la barra de inicio */
+  .np-pwa-banner {
+    bottom: calc(20px + var(--sab)) !important;
+  }
+}
+
+/* ── Android específico ── */
+@supports not (-webkit-touch-callout: none) {
+  /* Material-style ripple en toques */
+  button, a {
+    -webkit-tap-highlight-color: rgba(124, 111, 255, 0.15);
+  }
+
+  /* Scroll más fluido en Chrome Android */
+  * { scroll-behavior: smooth; }
+
+  /* Badge flotante en Android: barra de navegación suele ser ~48px */
+  .np-badge-float {
+    bottom: calc(16px + var(--sab)) !important;
+  }
+
+  /* Banner PWA */
+  .np-pwa-banner {
+    bottom: calc(20px + var(--sab)) !important;
+  }
+}
+
+/* ── Tamaños mínimos de toque (44x44px recomendado por Apple y Google) ── */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Excepciones para elementos muy pequeños decorativos */
+  .np-tag-sm { min-height: auto; min-width: auto; }
+}
+
+/* ── Orientación horizontal en móvil ── */
+@media (max-width: 768px) and (orientation: landscape) {
+  .np-nav-sticky {
+    padding-left:  calc(12px + var(--sal));
+    padding-right: calc(12px + var(--sar));
+  }
+}
+
+/* ── Scrollbar oculto en móvil (no ocupa espacio visual) ── */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* ── Textos que no deben partirse en palabras cortas en móvil ── */
+@media (max-width: 480px) {
+  h1, h2, h3 { overflow-wrap: break-word; word-break: break-word; }
+}

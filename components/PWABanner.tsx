@@ -34,8 +34,8 @@ export default function PWABanner() {
   }
 
   return (
-    <div style={{
-      position:'fixed', bottom:20, left:'50%', transform:'translateX(-50%)',
+    <div className='np-pwa-banner' style={{
+      position:'fixed', left:'50%', transform:'translateX(-50%)',
       background:'rgba(12,12,24,0.97)',
       border:'1px solid rgba(124,111,255,0.5)',
       borderRadius:18, padding:'12px 18px', zIndex:9999,

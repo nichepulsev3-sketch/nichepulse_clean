@@ -344,6 +344,10 @@ export default function Dashboard() {
               {isMobile?t.icon:t.label}
             </button>
           ))}
+          <a href="/download" title="Descargar app"
+            style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+            {isMobile?'⬇':'⬇ App'}
+          </a>
           <button onClick={async()=>{await supabase.auth.signOut();window.location.href='/'}}
             style={{padding:isMobile?'6px 8px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,cursor:'pointer',border:'1px solid rgba(255,255,255,0.1)',background:'transparent',color:'var(--t3)',fontFamily:'var(--font-body)'}}>
             {isMobile?'↩':'Salir'}

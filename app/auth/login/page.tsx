@@ -55,8 +55,7 @@ function LoginForm() {
         <div style={{ textAlign:'center', marginBottom:'2rem' }}>
           <a href="/" style={{ textDecoration:'none', display:'inline-block' }}>
             <div style={{ fontFamily:'var(--font-display)', fontSize:'2rem', fontWeight:800, letterSpacing:'-1px' }}>
-              <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Niche</span>
-              <span style={{ color:'var(--t1)' }}>Pulse</span>
+              <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>NichepulseV.3</span>
             </div>
           </a>
           <div style={{ fontSize:14, color:'var(--t2)', marginTop:'.5rem' }}>

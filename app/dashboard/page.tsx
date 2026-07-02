@@ -331,8 +331,7 @@ export default function Dashboard() {
       {/* NAV */}
       <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'10px 12px':'12px 20px',borderBottom:'1px solid rgba(124,111,255,0.15)',position:'sticky',top:0,background:'rgba(8,8,15,0.96)',backdropFilter:'blur(16px)',zIndex:100,boxShadow:'0 1px 20px rgba(0,0,0,0.3)'}}>
         <div style={{fontFamily:'var(--font-display)',fontSize:isMobile?'1rem':'1.15rem',fontWeight:800,letterSpacing:'-0.5px',display:'flex',alignItems:'center',gap:6}}>
-          <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Niche</span>
-          <span style={{color:'var(--t1)'}}>Pulse</span>
+          <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>NichepulseV.3</span>
           {profileLoaded&&!isPro&&<span style={{background:'linear-gradient(90deg,var(--acc3),#00b4d8)',color:'#000',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>FREE</span>}
           {profileLoaded&&isPro&&!isAgency&&<span style={{background:'var(--g1)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>PRO</span>}
           {profileLoaded&&isAgency&&<span style={{background:'var(--g2)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>AGENCY</span>}

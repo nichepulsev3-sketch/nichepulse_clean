@@ -15,13 +15,13 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title:       'NichePulse — Nichos de Dropshipping con IA',
+  title:       'NichepulseV.3 — Nichos de Dropshipping con IA',
   description: 'Encuentra nichos rentables de dropshipping en tiempo real con Claude AI, Google Trends, TikTok y Amazon.',
   manifest:    '/manifest.json',
   appleWebApp: {
     capable:        true,
     statusBarStyle: 'black-translucent',
-    title:          'NichePulse',
+    title:          'NichepulseV.3',
   },
   icons: {
     icon:    [
@@ -32,14 +32,14 @@ export const metadata: Metadata = {
     shortcut: '/icon-192.png',
   },
   openGraph: {
-    title:       'NichePulse — Nichos de Dropshipping con IA',
+    title:       'NichepulseV.3 — Nichos de Dropshipping con IA',
     description: 'Señales de mercado en tiempo real para encontrar nichos rentables.',
     type:        'website',
-    siteName:    'NichePulse',
+    siteName:    'NichepulseV.3',
   },
   twitter: {
     card:  'summary_large_image',
-    title: 'NichePulse — Nichos de Dropshipping con IA',
+    title: 'NichepulseV.3 — Nichos de Dropshipping con IA',
   },
   keywords: ['dropshipping','niche finder','IA','ecommerce','nichos rentables'],
 }
@@ -48,11 +48,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={`${syne.variable} ${dmSans.variable}`}>
       <head>
-        <meta name="application-name"                      content="NichePulse"/>
+        <meta name="application-name"                      content="NichepulseV.3"/>
         <meta name="mobile-web-app-capable"                content="yes"/>
         <meta name="apple-mobile-web-app-capable"          content="yes"/>
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-        <meta name="apple-mobile-web-app-title"            content="NichePulse"/>
+        <meta name="apple-mobile-web-app-title"            content="NichepulseV.3"/>
         <meta name="msapplication-TileColor"               content="#7c6fff"/>
       </head>
       <body style={{ fontFamily: 'var(--font-dm,DM Sans),sans-serif' }}>

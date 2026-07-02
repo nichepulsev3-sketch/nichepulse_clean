@@ -18,19 +18,19 @@ const STEPS = {
     { icon:'🌐', title:'Abre Chrome',        desc:'Asegúrate de usar Google Chrome en tu Android.' },
     { icon:'⋮',  title:'Toca el menú',       desc:'Pulsa los tres puntos (⋮) arriba a la derecha de Chrome.' },
     { icon:'📲', title:'Añadir a inicio',    desc:'Selecciona "Añadir a pantalla de inicio" o "Instalar app".' },
-    { icon:'✅', title:'¡Instalada!',         desc:'NichePulse aparecerá en tu escritorio como una app nativa.' },
+    { icon:'✅', title:'¡Instalada!',         desc:'NichepulseV.3 aparecerá en tu escritorio como una app nativa.' },
   ],
   ios: [
     { icon:'🌐', title:'Abre Safari',        desc:'Abre esta página en Safari (no funciona en Chrome para iOS).' },
     { icon:'📤', title:'Pulsa Compartir',    desc:'Toca el botón compartir ⬆ en la barra inferior de Safari.' },
     { icon:'🏠', title:'Añadir a inicio',   desc:'Desplázate y toca "Añadir a pantalla de inicio".' },
-    { icon:'✅', title:'¡Instalada!',         desc:'NichePulse aparecerá en tu pantalla de inicio de iPhone/iPad.' },
+    { icon:'✅', title:'¡Instalada!',         desc:'NichepulseV.3 aparecerá en tu pantalla de inicio de iPhone/iPad.' },
   ],
   pc: [
     { icon:'🌐', title:'Abre Chrome o Edge', desc:'Usa Google Chrome o Microsoft Edge en tu ordenador.' },
     { icon:'💻', title:'Mira la barra',      desc:'Verás un icono de instalación (⊕) en la barra de direcciones.' },
-    { icon:'📥', title:'Haz clic e instala', desc:'Haz clic en el icono e instala NichePulse como app de escritorio.' },
-    { icon:'✅', title:'¡Instalada!',         desc:'NichePulse abrirá en su propia ventana sin barra del navegador.' },
+    { icon:'📥', title:'Haz clic e instala', desc:'Haz clic en el icono e instala NichepulseV.3 como app de escritorio.' },
+    { icon:'✅', title:'¡Instalada!',         desc:'NichepulseV.3 abrirá en su propia ventana sin barra del navegador.' },
   ],
   unknown: [],
 }
@@ -78,8 +78,7 @@ export default function DownloadPage() {
       {/* NAV */}
       <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderBottom:'1px solid rgba(124,111,255,0.15)', background:'rgba(8,8,15,0.96)', backdropFilter:'blur(16px)', position:'sticky', top:0, zIndex:100 }}>
         <Link href="/" style={{ fontFamily:'var(--font-display)', fontSize:'1.15rem', fontWeight:800, textDecoration:'none', display:'flex', alignItems:'center', gap:6 }}>
-          <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Niche</span>
-          <span style={{ color:'var(--t1)' }}>Pulse</span>
+          <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>NichepulseV.3</span>
         </Link>
         <Link href="/dashboard" className="np-btn-primary" style={{ textDecoration:'none', padding:'8px 18px', fontSize:13 }}>
           Abrir app →
@@ -95,7 +94,7 @@ export default function DownloadPage() {
         <div style={{ width:88, height:88, borderRadius:24, background:'var(--g1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.25rem', boxShadow:'0 8px 32px rgba(124,111,255,0.4)', fontFamily:'var(--font-display)', fontSize:'2.2rem', fontWeight:800, color:'#fff' }}>N</div>
 
         <h1 style={{ fontFamily:'var(--font-display)', fontSize:'clamp(1.75rem,5vw,3rem)', fontWeight:800, letterSpacing:'-1px', marginBottom:'.75rem', lineHeight:1.1 }}>
-          Descarga <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>NichePulse</span>
+          Descarga <span style={{ background:'var(--g1)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>NichepulseV.3</span>
         </h1>
         <p style={{ color:'var(--t2)', fontSize:'1rem', maxWidth:480, margin:'0 auto 2rem', lineHeight:1.7 }}>
           Instálala gratis en tu dispositivo y accede a tu motor Multi-IA de nichos dropshipping desde cualquier lugar, como una app nativa.
@@ -113,7 +112,7 @@ export default function DownloadPage() {
         )}
         {installed && (
           <div style={{ background:'rgba(0,229,195,0.1)', border:'1px solid rgba(0,229,195,0.4)', borderRadius:12, padding:'12px 24px', display:'inline-flex', alignItems:'center', gap:8, fontSize:15, color:'var(--acc3)', marginBottom:'1.5rem' }}>
-            ✅ NichePulse instalada correctamente en tu dispositivo
+            ✅ NichepulseV.3 instalada correctamente en tu dispositivo
           </div>
         )}
 
@@ -202,9 +201,9 @@ export default function DownloadPage() {
         <div style={{ background:'linear-gradient(135deg,rgba(124,111,255,0.08),rgba(255,107,157,0.06))', border:'1px solid rgba(124,111,255,0.2)', borderRadius:16, padding:'1.5rem', textAlign:'center' }}>
           <div style={{ width:64, height:64, borderRadius:'50%', background:'var(--g1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1rem', fontSize:'1.5rem', fontWeight:800, color:'#fff', fontFamily:'var(--font-display)', boxShadow:'0 4px 16px rgba(124,111,255,0.4)' }}>M</div>
           <div style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:'1.1rem', marginBottom:3 }}>Manel Solsona Joya</div>
-          <div style={{ fontSize:12, color:'var(--acc)', fontWeight:600, marginBottom:'.75rem', letterSpacing:'.5px', textTransform:'uppercase' }}>CEO & Fundador · NichePulse</div>
+          <div style={{ fontSize:12, color:'var(--acc)', fontWeight:600, marginBottom:'.75rem', letterSpacing:'.5px', textTransform:'uppercase' }}>CEO & Fundador · NichepulseV.3</div>
           <p style={{ fontSize:13, color:'var(--t2)', lineHeight:1.6, maxWidth:420, margin:'0 auto', marginBottom:'1rem' }}>
-            NichePulse nació con la misión de democratizar el análisis de mercado para emprendedores dropshipping de todo el mundo, usando IA de última generación.
+            NichepulseV.3 nació con la misión de democratizar el análisis de mercado para emprendedores dropshipping de todo el mundo, usando IA de última generación.
           </p>
           <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
             <span style={{ fontSize:11, color:'var(--t3)', background:'var(--c3)', borderRadius:8, padding:'4px 10px' }}>🌍 Global</span>

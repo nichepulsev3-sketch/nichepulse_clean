@@ -80,11 +80,11 @@ export default function Home() {
           <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--g1)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-display)', fontWeight:700, fontSize:'.9rem', color:'#fff' }}>M</div>
           <div style={{ textAlign:'left' }}>
             <div style={{ fontSize:13, fontWeight:600, color:'var(--t1)' }}>Manel Solsona Joya</div>
-            <div style={{ fontSize:11, color:'var(--acc)', fontWeight:500 }}>CEO & Fundador · NichePulse</div>
+            <div style={{ fontSize:11, color:'var(--acc)', fontWeight:500 }}>CEO & Fundador · NichepulseV.3</div>
           </div>
         </div>
         <div style={{ fontSize:11, color:'var(--t3)' }}>
-          © 2024 NichePulse · Multi-motor de IA para dropshipping ·{' '}
+          © 2024 NichepulseV.3 · Multi-motor de IA para dropshipping ·{' '}
           <Link href="/download" style={{ color:'var(--acc)', textDecoration:'none' }}>Descargar app</Link>
           {' '}·{' '}
           <Link href="/pricing" style={{ color:'var(--t3)', textDecoration:'none' }}>Planes</Link>

@@ -48,7 +48,7 @@ export default function PWABanner() {
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
         <div style={{ width:36, height:36, borderRadius:10, background:'var(--g1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1rem', fontWeight:800, color:'#fff', fontFamily:'var(--font-display)', flexShrink:0 }}>N</div>
         <div>
-          <div style={{ fontWeight:600, fontSize:13 }}>Instala NichePulse</div>
+          <div style={{ fontWeight:600, fontSize:13 }}>Instala NichepulseV.3</div>
           <div style={{ fontSize:11, color:'rgba(160,160,192,0.8)' }}>Acceso rápido desde tu dispositivo</div>
         </div>
       </div>

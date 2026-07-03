@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { downloadNichePDF } from '@/lib/pdf'
-import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile } from '@/lib/supabase'
+import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile, scoreColor } from '@/lib/supabase'
 import TrendsPanel from '@/components/TrendsPanel'
 
 // ── Regiones por continente ───────────────────────────────────
@@ -489,7 +489,7 @@ export default function Dashboard() {
                         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:'.7rem'}}>
                           <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:'.92rem',paddingRight:isAgency?50:10}}>{n.name}</div>
                           <div style={{textAlign:'right',flexShrink:0}}>
-                            <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',fontWeight:800,color:scoreColor(n.score),textShadow:scoreGlow(n.score)}}>{n.score}</div>
+                            <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',fontWeight:800,color:scoreColor(n.opportunity_score??n.profit_score??0)}}>{n.opportunity_score??n.profit_score??0}</div>
                             <div style={{fontSize:9,color:'var(--t3)'}}>Score</div>
                           </div>
                         </div>
@@ -655,7 +655,7 @@ export default function Dashboard() {
               </div>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <div style={{textAlign:'right'}}>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',fontWeight:800,color:scoreColor(selected.score),textShadow:scoreGlow(selected.score)}}>{selected.score}</div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',fontWeight:800,color:scoreColor(selected.opportunity_score??selected.profit_score??0)}}>{selected.opportunity_score??selected.profit_score??0}</div>
                   <div style={{fontSize:9,color:'var(--t3)'}}>Score IA</div>
                 </div>
                 <button onClick={()=>setSelected(null)} style={{background:'var(--c3)',border:'none',color:'var(--t1)',width:32,height:32,borderRadius:'50%',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>

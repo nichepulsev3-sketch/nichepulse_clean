@@ -103,7 +103,7 @@ export default function FavoritesPage() {
                   )}
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
-                  <div style={{ fontFamily:'var(--font-display)', fontSize:'1.2rem', fontWeight:800, color:scoreColor(fav.niche?.opportunity_score ?? fav.niche?.score ?? 0) }}>
+                  <div style={{ fontFamily:'var(--font-display)', fontSize:'1.2rem', fontWeight:800, color:scoreColor(fav.niche?.opportunity_score ?? fav.niche?.profit_score ?? 0) }}>
                     {fav.niche?.opportunity_score ?? fav.niche?.score ?? '—'}
                   </div>
                   <button onClick={() => removeFavorite(fav.id)} title="Eliminar favorito"

@@ -1,52 +1,45 @@
 import type { Metadata, Viewport } from 'next'
-import { Syne, DM_Sans } from 'next/font/google'
 import PWABanner from '@/components/PWABanner'
+import CommandPalette from '@/components/CommandPalette'
 import './globals.css'
 
-const syne   = Syne({ subsets:['latin'], variable:'--font-syne', weight:['400','500','600','700','800'] })
-const dmSans = DM_Sans({ subsets:['latin'], variable:'--font-dm',  weight:['300','400','500'] })
-
 export const viewport: Viewport = {
-  themeColor:   '#7c6fff',
-  colorScheme:  'dark',
-  width:        'device-width',
-  initialScale: 1,
-  viewportFit:  'cover',
+  themeColor:    [
+    { media:'(prefers-color-scheme: dark)',  color:'#7c6fff' },
+    { media:'(prefers-color-scheme: light)', color:'#7c6fff' },
+  ],
+  colorScheme:   'dark',
+  width:         'device-width',
+  initialScale:  1,
+  maximumScale:  1,
+  userScalable:  false,
+  viewportFit:   'cover',
 }
 
 export const metadata: Metadata = {
-  title:       'NichepulseV.3 — Nichos de Dropshipping con IA',
-  description: 'Encuentra nichos rentables de dropshipping en tiempo real con Claude AI, Google Trends, TikTok y Amazon.',
+  title:       'NichepulseV.3 — Motor Multi-IA de Dropshipping',
+  description: 'El sistema más avanzado de análisis de nichos dropshipping. Motor Multi-IA, Opportunity Score, Radar de Nichos y más.',
   manifest:    '/manifest.json',
-  appleWebApp: {
-    capable:        true,
-    statusBarStyle: 'black-translucent',
-    title:          'NichepulseV.3',
-  },
+  appleWebApp: { capable:true, statusBarStyle:'black-translucent', title:'NichepulseV.3' },
   icons: {
-    icon:    [
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple:    '/icon-192.png',
-    shortcut: '/icon-192.png',
+    icon:     [{ url:'/icon-192.png',sizes:'192x192',type:'image/png' },{ url:'/icon-512.png',sizes:'512x512',type:'image/png' }],
+    apple:    [{ url:'/icon-192.png',sizes:'180x180',type:'image/png' }],
+    shortcut:  '/icon-192.png',
   },
   openGraph: {
-    title:       'NichepulseV.3 — Nichos de Dropshipping con IA',
-    description: 'Señales de mercado en tiempo real para encontrar nichos rentables.',
+    title:       'NichepulseV.3 — Motor Multi-IA de Dropshipping',
+    description: 'Encuentra nichos rentables con el sistema más avanzado del mercado.',
     type:        'website',
     siteName:    'NichepulseV.3',
   },
-  twitter: {
-    card:  'summary_large_image',
-    title: 'NichepulseV.3 — Nichos de Dropshipping con IA',
-  },
-  keywords: ['dropshipping','niche finder','IA','ecommerce','nichos rentables'],
+  twitter: { card:'summary_large_image', title:'NichepulseV.3 — Motor Multi-IA de Dropshipping' },
+  keywords:  ['dropshipping','niche finder','IA','ecommerce','nichos rentables','opportunity score'],
+  formatDetection: { telephone:false, email:false, address:false },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${syne.variable} ${dmSans.variable}`}>
+    <html lang="es">
       <head>
         <meta name="application-name"                      content="NichepulseV.3"/>
         <meta name="mobile-web-app-capable"                content="yes"/>
@@ -54,11 +47,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
         <meta name="apple-mobile-web-app-title"            content="NichepulseV.3"/>
         <meta name="msapplication-TileColor"               content="#7c6fff"/>
+        <meta name="theme-color"                           content="#07070e"/>
+        <meta name="format-detection"                      content="telephone=no,email=no,address=no"/>
+        <link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin=""/>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
       </head>
-      <body style={{ fontFamily: 'var(--font-dm,DM Sans),sans-serif' }}>
+      <body style={{ overscrollBehavior:'none' }}>
         {children}
-        {/* Banner de instalación PWA — componente cliente */}
         <PWABanner />
+        <CommandPalette />
       </body>
     </html>
   )

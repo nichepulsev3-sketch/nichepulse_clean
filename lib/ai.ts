@@ -21,8 +21,8 @@ const openaiClient = process.env.OPENAI_API_KEY?.trim()
  * la diferencia entre "un número" y "una decisión justificada". */
 const AI_CONFIG = {
   free:   { claude: 'claude-haiku-4-5-20251001', openai: null,         tokens: 4000 },
-  pro:    { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 7000 },
-  agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8000 },
+  pro:    { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8192 },
+  agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8192 },
 }
 
 // Timeout adaptativo por inactividad (ver callClaude/callOpenAI más abajo):
@@ -181,6 +181,37 @@ REGLAS CRÍTICAS:
   return `${expertise}\n${format}`
 }
 
+/* ── Reparación de arrays JSON truncados ──────────────────────────
+ * Si el modelo agota max_tokens a mitad de generación, la respuesta
+ * se corta dentro de un objeto — el array nunca llega a cerrarse. En
+ * vez de perder TODA la respuesta, recorremos el texto respetando
+ * strings/escapes y localizamos el último objeto de nivel superior
+ * que se cerró por completo (el momento exacto en que depth vuelve a
+ * 1 justo tras un '}'), y devolvemos el array hasta ahí. Así, si 3 de
+ * 4 nichos terminaron de generarse antes del corte, recuperamos esos
+ * 3 en vez de fallar la búsqueda entera. Más fiable que buscar el
+ * último "}," de forma literal, que puede coincidir por casualidad
+ * dentro de un string o de un nivel más profundo del objeto incompleto. */
+function repairTruncatedArray(text: string): any[] | null {
+  const start = text.indexOf('[')
+  if (start < 0) return null
+  let depth = 0, inString = false, escape = false, lastCompleteEnd = -1
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '[' || ch === '{') depth++
+    else if (ch === ']' || ch === '}') {
+      depth--
+      if (depth === 1 && ch === '}') lastCompleteEnd = i
+    }
+  }
+  if (lastCompleteEnd < 0) return null
+  try { return JSON.parse(text.slice(start, lastCompleteEnd + 1) + ']') } catch { return null }
+}
+
 /* ── Parser JSON robusto ────────────────────────────────────────── */
 function parse(text: string): NicheResult[] | null {
   const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
@@ -189,6 +220,7 @@ function parse(text: string): NicheResult[] | null {
     () => { const s=clean.indexOf('['), e=clean.lastIndexOf(']'); if(s>=0&&e>s) return JSON.parse(clean.slice(s,e+1)) },
     () => JSON.parse(clean.replace(/,(\s*[}\]])/g,'$1')),
     () => { const s=clean.indexOf('['), e=clean.lastIndexOf(']'); if(s>=0&&e>s) return JSON.parse(clean.slice(s,e+1).replace(/,(\s*[}\]])/g,'$1')) },
+    () => repairTruncatedArray(clean),
     () => {
       const s=clean.indexOf('['); if(s<0) return null
       const partial=s>=0&&clean.lastIndexOf(']')>s ? clean.slice(s,clean.lastIndexOf(']')+1) : clean.slice(s)
@@ -272,7 +304,16 @@ async function callClaude(model: string, system: string, prompt: string, maxToke
     clearInterval(idleTimer); clearTimeout(hardTimer)
     const text = finalMessage.content.filter(b=>b.type==='text').map(b=>(b as any).text).join('')
     const parsed = parse(text)
-    if (!parsed) { console.error(`[claude] ${Date.now()-start}ms → JSON inválido:`, text.slice(0,300)); throw new Error('Claude: JSON inválido') }
+    if (!parsed) {
+      // stop_reason:'max_tokens' confirma que el corte fue por presupuesto
+      // de tokens agotado, no un fallo de formato — clave para diagnosticar.
+      // Se loguea inicio Y final del texto: la reparación de truncado
+      // necesita ver justo el final, que antes se perdía con slice(0,300).
+      console.error(`[claude] ${Date.now()-start}ms → JSON inválido (stop_reason:${(finalMessage as any).stop_reason ?? '?'}, ${text.length} chars)`)
+      console.error(`[claude] inicio:`, text.slice(0, 200))
+      console.error(`[claude] final:`, text.slice(-300))
+      throw new Error('Claude: JSON inválido')
+    }
     console.log(`[claude:${model.split('-')[1]}] ✅ ${Date.now()-start}ms → ${parsed.length} nichos`)
     return parsed
   } catch (err: any) {
@@ -360,7 +401,11 @@ export async function searchNiches(
 ): Promise<NicheResult[]> {
   const cfg = AI_CONFIG[plan] ?? AI_CONFIG.pro
   const isAgency   = plan === 'agency'
-  const maxResults = plan === 'free' ? 3 : isAgency ? 5 : 6
+  // Bajado de 6/5 a 4 para pro/agency: con 12 scorecards + motivos por
+  // nicho, pedir 6 nichos se comía el presupuesto de tokens y Claude
+  // cortaba la respuesta a mitad de generación (JSON truncado). Con 4
+  // nichos cada uno recibe más presupuesto real y termina completo.
+  const maxResults = plan === 'free' ? 3 : 4
 
   // Señales en vivo (timeout 1.5s máximo)
   let trendContext = ''

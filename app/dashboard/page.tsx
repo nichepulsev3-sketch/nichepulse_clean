@@ -155,7 +155,7 @@ function useCountdown(profile:Profile|null):string{
 function PlansTab({onUpgrade,onManageBilling,billingLoading,currentPlan='free'}:{onUpgrade:(p:'pro'|'agency')=>void;onManageBilling:()=>void;billingLoading?:boolean;currentPlan?:string}){
   const PLANS=[
     {key:'free' as const,name:'Free',price:'$0',period:'/ siempre',grad:'',features:['5 búsquedas / día','Top 3 nichos','Score IA','❌ Análisis completo','❌ PDF exportable','❌ Links a proveedores'],cta:'Empezar gratis',dis:false},
-    {key:'pro' as const,name:'Pro',price:'$19',period:'/ mes',grad:'var(--g1)',features:['Búsquedas ilimitadas','Top 8 nichos','Análisis completo en PDF','✓ Links directos a proveedores','✓ Keywords y cómo empezar','✓ Señales en vivo'],cta:'Subir a Pro',dis:false},
+    {key:'pro' as const,name:'Pro',price:'$19',period:'/ mes',grad:'var(--g1)',features:['Búsquedas ilimitadas','Top 4 nichos con 12 scores IA','Análisis completo en PDF','✓ Links directos a proveedores','✓ Keywords y cómo empezar','✓ Señales en vivo'],cta:'Subir a Pro',dis:false},
     {key:'agency' as const,name:'Agency',price:'$79',period:'/ mes',grad:'var(--g2)',features:['Todo en Pro','Análisis Expert validado','Veredicto equipo experto','ROI validado 90 días','Hasta 10 usuarios','API + white-label'],cta:'Subir a Agency',dis:false},
   ]
   return(

@@ -7,7 +7,7 @@ const PLANS = [
     features:[{ok:true,t:'5 búsquedas / día'},{ok:true,t:'Top 3 nichos'},{ok:true,t:'Score IA básico'},{ok:false,t:'Análisis completo'},{ok:false,t:'Proveedores recomendados'},{ok:false,t:'Keywords + canales ads'},{ok:false,t:'Exportar CSV/PDF'}],
     cta:'Empezar gratis', featured:false },
   { key:'pro',    name:'Pro',    price:'$19', period:'/ mes',     desc:'Para emprendedores serios.',
-    features:[{ok:true,t:'Búsquedas ilimitadas'},{ok:true,t:'Top 10 nichos detallados'},{ok:true,t:'Análisis completo'},{ok:true,t:'Proveedores (Ali, Spocket, CJ...)'},{ok:true,t:'Keywords + canales ads'},{ok:true,t:'Exportar CSV/PDF'},{ok:true,t:'Alertas de tendencias'}],
+    features:[{ok:true,t:'Búsquedas ilimitadas'},{ok:true,t:'Top 4 nichos con 12 scores IA'},{ok:true,t:'Análisis completo'},{ok:true,t:'Proveedores (Ali, Spocket, CJ...)'},{ok:true,t:'Keywords + canales ads'},{ok:true,t:'Exportar CSV/PDF'},{ok:true,t:'Alertas de tendencias'}],
     cta:'Empezar Pro', featured:true },
   { key:'agency', name:'Agency', price:'$79', period:'/ mes',     desc:'Para agencias y equipos.',
     features:[{ok:true,t:'Todo en Pro'},{ok:true,t:'Hasta 10 usuarios'},{ok:true,t:'Acceso API REST'},{ok:true,t:'White-label disponible'},{ok:true,t:'Soporte prioritario 24/7'},{ok:true,t:'Informes personalizados'},{ok:true,t:'SLA garantizado'}],

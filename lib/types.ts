@@ -259,8 +259,8 @@ export const PLAN_LIMITS: Record<Plan, {
   ai_mode:         'basic' | 'pro' | 'expert'
 }> = {
   free:   { searches_per_day:5,  max_results:3, pdf_export:false, radar_access:false, comparator:false, smart_alerts:0,  favorites:5,   ai_mode:'basic'  },
-  pro:    { searches_per_day:999,max_results:6, pdf_export:true,  radar_access:true,  comparator:true,  smart_alerts:3,  favorites:100, ai_mode:'pro'    },
-  agency: { searches_per_day:999,max_results:5, pdf_export:true,  radar_access:true,  comparator:true,  smart_alerts:20, favorites:999, ai_mode:'expert' },
+  pro:    { searches_per_day:999,max_results:4, pdf_export:true,  radar_access:true,  comparator:true,  smart_alerts:3,  favorites:100, ai_mode:'pro'    },
+  agency: { searches_per_day:999,max_results:4, pdf_export:true,  radar_access:true,  comparator:true,  smart_alerts:20, favorites:999, ai_mode:'expert' },
 }
 
 export function canSearch(plan: Plan, used: number): boolean {

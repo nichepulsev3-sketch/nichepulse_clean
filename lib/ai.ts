@@ -6,7 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
 import { getTrends, buildTrendContext } from './trends'
-import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict } from './types'
+import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
 
 const anthropic    = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(), maxRetries: 0 })
@@ -309,7 +309,8 @@ async function raceAI(promises: Promise<NicheResult[]>[]): Promise<NicheResult[]
 
 /* ── Función principal ──────────────────────────────────────────── */
 export async function searchNiches(
-  query: string, filters: Record<string,boolean>, plan: Plan, geo = 'US'
+  query: string, filters: Record<string,boolean>, plan: Plan, geo = 'US',
+  opts?: { history?: string[] }
 ): Promise<NicheResult[]> {
   const cfg = AI_CONFIG[plan] ?? AI_CONFIG.pro
   const isAgency   = plan === 'agency'
@@ -322,11 +323,21 @@ export async function searchNiches(
     if (r) trendContext = buildTrendContext(r)
   } catch {}
 
+  // Memoria de sesión básica: si el cliente tiene búsquedas recientes,
+  // se las pasamos como contexto para que la IA pueda relacionar el
+  // nicho actual con lo que ya buscó ("alternativa con mejor margen a
+  // lo que buscaste la semana pasada") — solo si aporta valor real,
+  // nunca forzado. No requiere tablas nuevas, ya viene de niche_searches.
+  const history = (opts?.history ?? []).filter(h => h && h.toLowerCase() !== query.toLowerCase()).slice(0, 5)
+  const historyContext = history.length
+    ? `\nCONTEXTO DEL CLIENTE: sus últimas búsquedas fueron: ${history.map(h => `"${h}"`).join(', ')}. Si algún nicho que generes ahora se relaciona con su historial (mismo mercado, alternativa con mejor margen/menos competencia, complemento natural), menciónalo brevemente en su executive_summary o verdict_reason — solo si aporta valor real y es honesto, no lo fuerces si no hay relación.`
+    : ''
+
   const filterDesc = Object.entries(filters).filter(([,v])=>v).map(([k])=>k).join(', ')
   const system     = buildSystem(plan, trendContext)
   const userPrompt = `Consulta del cliente: "${query}"
 Filtros: ${filterDesc || 'ninguno'} | País/Mercado: ${geo} | Nichos a analizar: ${maxResults} | Fecha: ${new Date().toISOString().split('T')[0]}
-${isAgency ? 'CLIENTE AGENCY: máxima profundidad, datos verificados, playbook incluido.' : ''}
+${isAgency ? 'CLIENTE AGENCY: máxima profundidad, datos verificados, playbook incluido.' : ''}${historyContext}
 Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_score DESC. Análisis de nivel consultor.`
 
   const promises: Promise<NicheResult[]>[] = [
@@ -358,5 +369,92 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
       if (msg.includes('timeout')) throw new Error(`El motor de IA tardó demasiado en responder (>${TIMEOUT.claude/1000}s). Puede ser un problema temporal de conexión con Anthropic — inténtalo de nuevo en un minuto.`)
       throw new Error(`Error en el motor Multi-IA: ${msg || 'desconocido'}. Inténtalo de nuevo.`)
     }
+  }
+}
+
+/* ── Comparador de nichos ──────────────────────────────────────────
+ * NO vuelve a analizar los nichos desde cero: reutiliza el 100% de los
+ * 12 scores + veredicto que el Motor de Inteligencia ya generó para
+ * cada uno. Solo pide a la IA una decisión corta — "de estos que ya
+ * tienes analizados, ¿cuál elegirías y por qué" — así el coste y el
+ * tiempo de espera son mínimos comparados con una búsqueda normal. */
+const COMPARE_TIMEOUT = 20000
+
+export async function compareNiches(niches: any[], plan: Plan): Promise<CompareVerdict> {
+  const model = AI_CONFIG[plan]?.claude ?? AI_CONFIG.pro.claude
+  const system = `Eres un consultor senior de ecommerce y dropshipping. Te dan 2 o 3 nichos que un cliente ya analizó (con sus scores 0-100 y veredicto). Decide cuál elegirías tú si solo pudieras invertir en uno.
+RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO, sin markdown ni texto fuera del objeto:
+{"winner":"<name EXACTO de uno de los nichos recibidos>","reasoning":"<máximo 40 palabras, comparando datos concretos de los nichos entre sí, nunca una frase genérica>"}`
+
+  const summarized = niches.map((n: any) => ({
+    name: n.name,
+    opportunity_score: n.opportunity_score ?? n.profit_score,
+    verdict: n.verdict,
+    scores: n.scores
+      ? Object.fromEntries(Object.entries(n.scores).map(([k, v]: [string, any]) => [k, v?.value]))
+      : undefined,
+    margin: n.margin,
+    market_size: n.market_size,
+    competition: n.competition,
+    trend: n.trend,
+    time_to_results: n.time_to_results,
+  }))
+
+  const fallback = (): CompareVerdict => {
+    const best = niches.reduce((a: any, b: any) =>
+      (b.opportunity_score ?? b.profit_score ?? 0) > (a.opportunity_score ?? a.profit_score ?? 0) ? b : a)
+    return { winner: best.name, reasoning: 'Comparación automática por Opportunity Score — la IA no pudo generar un veredicto razonado en este momento.' }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), COMPARE_TIMEOUT)
+  try {
+    const res = await anthropic.messages.create(
+      { model, max_tokens: 400, system, messages: [{ role: 'user', content: `Nichos a comparar:\n${JSON.stringify(summarized)}\n\nDevuelve SOLO el JSON.` }] },
+      { signal: controller.signal }
+    )
+    clearTimeout(timer)
+    const text = res.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
+    const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+    const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
+    if (s < 0 || e <= s) throw new Error('Comparador: JSON inválido')
+    const obj = JSON.parse(clean.slice(s, e + 1))
+    if (!obj?.winner || !niches.some((n: any) => n.name === obj.winner)) throw new Error('Comparador: winner no coincide')
+    return { winner: obj.winner, reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : '' }
+  } catch (err: any) {
+    clearTimeout(timer)
+    console.error('[compare] ❌', err?.message ?? err)
+    return fallback()
+  }
+}
+
+/* ── Plan de acción 30/60/90 para el informe ejecutivo v2 ──────────
+ * Solo se genera a partir de los nichos que el Motor de Inteligencia
+ * marcó "invertir" — no fabricamos un plan genérico para nichos que la
+ * propia IA ya desaconsejó, sería incoherente con su propio veredicto. */
+export async function generateActionPlan(investNiches: any[], plan: Plan): Promise<string[]> {
+  if (!investNiches.length) return []
+  const model = AI_CONFIG[plan]?.claude ?? AI_CONFIG.pro.claude
+  const system = `Eres un consultor senior de ecommerce. Te dan una lista de nichos que un sistema de análisis ya marcó como "invertir" (con datos concretos). Genera un plan de acción de 3 fases (30/60/90 días) para que el cliente empiece a ejecutar HOY sobre estos nichos en conjunto, priorizando el de mayor score primero.
+RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO: {"plan":["fase 1 (días 1-30): acción concreta con presupuesto/pasos","fase 2 (días 31-60): acción concreta","fase 3 (días 61-90): acción concreta"]}
+Cada fase máximo 35 palabras, específica y accionable — nunca genérica.`
+  const summarized = investNiches.slice(0,5).map((n: any) => ({ name: n.name, opportunity_score: n.opportunity_score, margin: n.margin, initial_investment: n.initial_investment, winning_angle: n.winning_angle }))
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), COMPARE_TIMEOUT)
+  try {
+    const res = await anthropic.messages.create(
+      { model, max_tokens: 600, system, messages: [{ role: 'user', content: `Nichos a priorizar:\n${JSON.stringify(summarized)}\n\nDevuelve SOLO el JSON.` }] },
+      { signal: controller.signal }
+    )
+    clearTimeout(timer)
+    const text = res.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
+    const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+    const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
+    const obj = JSON.parse(clean.slice(s, e + 1))
+    return Array.isArray(obj?.plan) ? obj.plan.filter((p: any) => typeof p === 'string').slice(0,3) : []
+  } catch (err: any) {
+    clearTimeout(timer)
+    console.error('[action-plan] ❌', err?.message ?? err)
+    return []
   }
 }

@@ -51,7 +51,8 @@ create table if not exists public.favorites (
 create index if not exists idx_favorites_user on public.favorites(user_id, created_at desc);
 create index if not exists idx_favorites_collection on public.favorites(user_id, collection);
 alter table public.favorites enable row level security;
-create policy if not exists "Favoritos propios" on public.favorites for all using (auth.uid() = user_id);
+drop policy if exists "Favoritos propios" on public.favorites;
+create policy "Favoritos propios" on public.favorites for all using (auth.uid() = user_id);
 
 -- ── Alertas inteligentes ──────────────────────────────────────
 create table if not exists public.smart_alerts (
@@ -69,7 +70,8 @@ create table if not exists public.smart_alerts (
 );
 create index if not exists idx_alerts_user on public.smart_alerts(user_id, active);
 alter table public.smart_alerts enable row level security;
-create policy if not exists "Alertas propias" on public.smart_alerts for all using (auth.uid() = user_id);
+drop policy if exists "Alertas propias" on public.smart_alerts;
+create policy "Alertas propias" on public.smart_alerts for all using (auth.uid() = user_id);
 
 -- ── Onboarding completado ────────────────────────────────────
 create table if not exists public.onboarding (
@@ -84,7 +86,8 @@ create table if not exists public.onboarding (
   completed_at  timestamptz not null default now()
 );
 alter table public.onboarding enable row level security;
-create policy if not exists "Onboarding propio" on public.onboarding for all using (auth.uid() = user_id);
+drop policy if exists "Onboarding propio" on public.onboarding;
+create policy "Onboarding propio" on public.onboarding for all using (auth.uid() = user_id);
 
 -- ── Logros / Achievements ─────────────────────────────────────
 create table if not exists public.achievements (
@@ -95,8 +98,10 @@ create table if not exists public.achievements (
 );
 create unique index if not exists idx_achievements_unique on public.achievements(user_id, type);
 alter table public.achievements enable row level security;
-create policy if not exists "Logros propios" on public.achievements for select using (auth.uid() = user_id);
-create policy if not exists "Service escribe logros" on public.achievements for insert with check (true);
+drop policy if exists "Logros propios" on public.achievements;
+create policy "Logros propios" on public.achievements for select using (auth.uid() = user_id);
+drop policy if exists "Service escribe logros" on public.achievements;
+create policy "Service escribe logros" on public.achievements for insert with check (true);
 
 -- ── Índices de optimización en búsquedas existentes ──────────
 create index if not exists idx_searches_user_date on public.niche_searches(user_id, created_at desc);

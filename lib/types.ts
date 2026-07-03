@@ -157,6 +157,12 @@ export interface NicheResult {
   agency_playbook?:     string[]
 }
 
+/* ── Comparador de nichos ────────────────────────────────────────── */
+export interface CompareVerdict {
+  winner:    string   // name exacto de uno de los nichos comparados
+  reasoning: string   // por qué, comparando datos concretos
+}
+
 export interface SupplierInfo {
   name: string
   note: string

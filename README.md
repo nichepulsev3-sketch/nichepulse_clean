@@ -15,7 +15,7 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 
 ### 2. Configurar Supabase
 1. Crea un proyecto nuevo en supabase.com
-2. Ve a **SQL Editor** y ejecuta los archivos de la carpeta `supabase/migrations/` en orden (001, 002, 003, 004). La migración 004 es especialmente importante: cierra una vulnerabilidad que permitía a cualquier usuario auto-ascender su propio plan a Agency sin pagar.
+2. Ve a **SQL Editor** y ejecuta los archivos de la carpeta `supabase/migrations/` en orden (001, 002, 003, 004, 005). La migración 004 es especialmente importante: cierra una vulnerabilidad que permitía a cualquier usuario auto-ascender su propio plan a Agency sin pagar. La migración 005 crea las tablas `watchlist` y `opportunity_alerts` para el Feed de oportunidades.
 3. Copia desde **Settings → API**: Project URL, anon key y service_role key
 
 ### 3. Configurar Stripe
@@ -50,6 +50,10 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 | `STRIPE_PRICE_PRO_MONTHLY` | Stripe → Product catalog → Pro → Price ID |
 | `STRIPE_PRICE_AGENCY_MONTHLY` | Stripe → Product catalog → Agency → Price ID |
 | `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
+| `OPENAI_API_KEY` | platform.openai.com → API Keys (opcional, motor secundario Pro/Agency) |
+| `CRON_SECRET` | Inventa una cadena larga aleatoria — protege el endpoint del Feed de oportunidades |
+| `RESEND_API_KEY` | resend.com → API Keys (opcional — sin esto, las alertas de watchlist no envían email, pero el resto de la app funciona igual) |
+| `RESEND_FROM` | Ej: `NichePulse <alerts@tudominio.com>` (opcional, requiere dominio verificado en Resend) |
 
 3. Haz clic en **Deploy**
 
@@ -68,6 +72,15 @@ Eventos a escuchar (imprescindible añadir los 5, si falta alguno el plan del us
 En Supabase → **Authentication → URL Configuration**:
 - Site URL: `https://tu-app.vercel.app`
 - Redirect URLs: `https://tu-app.vercel.app/auth/callback`
+
+### 9. Activar el Feed de oportunidades (IA proactiva)
+El endpoint `/api/cron/opportunity-feed` revisa a diario las búsquedas recientes de usuarios Pro/Agency y genera alertas cuando un nicho cambia de veredicto o de score. No se ejecuta solo: necesitas que algo lo llame una vez al día.
+
+Opción más simple (gratis, sin instalar nada): en **cron-job.org**, crea una tarea que haga un `POST` diario a `https://tu-app.vercel.app/api/cron/opportunity-feed` con la cabecera `Authorization: Bearer <tu CRON_SECRET>`.
+
+Si despliegas en Railway, puedes usar en su lugar un **Cron Schedule** de Railway apuntando al mismo endpoint con la misma cabecera.
+
+Sin `RESEND_API_KEY` configurada, las alertas se siguen generando y viendo en la campana 🔔 del dashboard — solo no se envía el email a los nichos en watchlist.
 
 ---
 

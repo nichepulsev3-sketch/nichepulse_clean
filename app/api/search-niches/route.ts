@@ -42,10 +42,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Límite de búsquedas alcanzado. Actualiza a Pro.' }, { status: 429 })
     }
 
+    // 4b. Memoria de sesión básica: últimas 5 búsquedas del usuario (best-effort,
+    //     si falla no debe bloquear la búsqueda actual).
+    let history: string[] = []
+    try {
+      const { data: recent } = await db.from('niche_searches')
+        .select('query').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5)
+      history = (recent ?? []).map((r: any) => r.query).filter(Boolean)
+    } catch { /* no bloqueante */ }
+
     // 5. Ejecutar búsqueda con IA + señales en vivo
     let results
     try {
-      results = await searchNiches(query, filters, profile.plan, geo.toUpperCase())
+      results = await searchNiches(query, filters, profile.plan, geo.toUpperCase(), { history })
     } catch (searchErr) {
       // La cuota ya se gastó (RPC atómica) pero la búsqueda falló: devolvemos
       // la búsqueda para no cobrarle al usuario un intento que no obtuvo resultado.
@@ -56,7 +65,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Guardar búsqueda en el historial (no bloqueante para la respuesta)
-    await db.from('niche_searches').insert({ user_id: user.id, query, filters, results })
+    //    geo se guarda para que el cron del Feed de oportunidades pueda
+    //    reproducir la misma búsqueda en el mismo país al re-analizarla.
+    await db.from('niche_searches').insert({ user_id: user.id, query, filters, results, geo: geo.toUpperCase() })
 
     return NextResponse.json({ results, searches_used: quota.used, plan: profile.plan })
 

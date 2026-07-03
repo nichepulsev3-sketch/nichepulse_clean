@@ -22,6 +22,7 @@ export default function CommandPalette({ onSearch }: { onSearch?: (q: string) =>
     { id:'search',    label:'Buscar nicho con IA',       icon:'🔍', category:'Acción',      action:()=>{ setOpen(false); document.querySelector<HTMLInputElement>('#main-search')?.focus() } },
     { id:'radar',     label:'Radar de Nichos',            icon:'📡', category:'Navegación',  action:()=>{ router.push('/radar');     setOpen(false) } },
     { id:'favorites', label:'Mis Favoritos',              icon:'⭐', category:'Navegación',  action:()=>{ router.push('/favorites'); setOpen(false) } },
+    { id:'watchlist', label:'Mi Watchlist',                icon:'👁', category:'Navegación',  action:()=>{ router.push('/watchlist'); setOpen(false) } },
     { id:'history',   label:'Historial de búsquedas',    icon:'📋', category:'Navegación',  action:()=>{ router.push('/dashboard?tab=history'); setOpen(false) } },
     { id:'plans',     label:'Ver planes y precios',       icon:'💎', category:'Cuenta',      action:()=>{ router.push('/pricing');  setOpen(false) } },
     { id:'download',  label:'Descargar app móvil',        icon:'📲', category:'Cuenta',      action:()=>{ router.push('/download'); setOpen(false) } },

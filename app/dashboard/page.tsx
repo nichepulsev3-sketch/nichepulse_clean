@@ -1,11 +1,14 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { downloadNichePDF } from '@/lib/pdf'
+import { downloadNichePDF, downloadExecutiveReportPDF } from '@/lib/pdf'
 import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile, scoreColor } from '@/lib/supabase'
 import TrendsPanel from '@/components/TrendsPanel'
 import ScoreGrid from '@/components/ScoreGrid'
 import VerdictBadge from '@/components/VerdictBadge'
+import CeoMode from '@/components/CeoMode'
+import CompareModal from '@/components/CompareModal'
+import OpportunityFeedBell from '@/components/OpportunityFeedBell'
 
 // ── Regiones por continente ───────────────────────────────────
 const GEO_REGIONS: Record<string, {code:string;label:string;currency:string}[]> = {
@@ -256,6 +259,11 @@ export default function Dashboard() {
   const [isIOSDevice,  setIsIOSDevice]  = useState(false)
   const [billingLoading,setBillingLoading]=useState(false)
   const [savedNiches,  setSavedNiches]  = useState<Set<string>>(new Set())
+  const [watchedNiches,setWatchedNiches]= useState<Set<string>>(new Set())
+  const [ceoMode,      setCeoMode]      = useState(false)
+  const [compareSet,   setCompareSet]   = useState<Set<string>>(new Set())
+  const [showCompare,  setShowCompare]  = useState(false)
+  const [reportLoading,setReportLoading]=useState(false)
   const lastQuery = useRef('')
   const autoSearchedRef = useRef(false)
   const countdown = useCountdown(profile)
@@ -305,6 +313,19 @@ export default function Dashboard() {
     if(error){ setSavedNiches(s=>{const n=new Set(s);n.delete(key);return n}); console.error('[favorites]',error) }
   }
 
+  async function watchNiche(niche:NicheResult){
+    const{data:{user}}=await supabase.auth.getUser(); if(!user)return
+    const key=niche.name
+    if(watchedNiches.has(key))return
+    setWatchedNiches(s=>new Set(s).add(key))
+    const{error}=await supabase.from('watchlist').upsert({
+      user_id:user.id, niche_name:niche.name, query:lastQuery.current||query, geo,
+      last_score:niche.opportunity_score??niche.profit_score??0, last_verdict:niche.verdict??null,
+      niche_data:niche,
+    },{onConflict:'user_id,niche_name'})
+    if(error){ setWatchedNiches(s=>{const n=new Set(s);n.delete(key);return n}); console.error('[watchlist]',error) }
+  }
+
   async function handleManageBilling(){
     setBillingLoading(true)
     try{
@@ -316,6 +337,19 @@ export default function Dashboard() {
       window.location.href=url
     }catch{ alert('No se pudo abrir el portal de facturación.') }
     finally{ setBillingLoading(false) }
+  }
+
+  async function handleExecutiveReport(){
+    if(reportLoading||results.length===0)return
+    setReportLoading(true)
+    try{
+      const{data:{session}}=await supabase.auth.getSession()
+      const res=await fetch('/api/executive-report',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token}`},body:JSON.stringify({niches:results})})
+      const json=await res.json()
+      if(!res.ok){alert(json.error??'No se pudo generar el informe');return}
+      await downloadExecutiveReportPDF(results,profile?.plan??'pro',currency,lastQuery.current||query,json.actionPlan??[])
+    }catch(e){ console.error('[executive-report]',e); alert('No se pudo generar el informe ejecutivo. Inténtalo de nuevo.') }
+    finally{ setReportLoading(false) }
   }
 
   const runSearch=useCallback(async(override?:string)=>{
@@ -397,6 +431,7 @@ export default function Dashboard() {
               {isMobile?t.icon:t.label}
             </button>
           ))}
+          {profileLoaded&&isPro&&<OpportunityFeedBell/>}
           <Link href="/radar" title="Radar de nichos"
             style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(0,229,195,0.3)',background:'rgba(0,229,195,0.08)',color:'var(--acc3)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
             {isMobile?'📡':'📡 Radar'}
@@ -405,6 +440,12 @@ export default function Dashboard() {
             style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(255,209,102,0.3)',background:'rgba(255,209,102,0.08)',color:'#ffd166',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
             {isMobile?'⭐':'⭐ Favoritos'}
           </Link>
+          {profileLoaded&&isPro&&(
+            <Link href="/watchlist" title="Mi watchlist"
+              style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+              {isMobile?'👁':'👁 Watchlist'}
+            </Link>
+          )}
           <a href="/download" title="Descargar app"
             style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
             {isMobile?'⬇':'⬇ App'}
@@ -535,10 +576,31 @@ export default function Dashboard() {
             {/* Resultados */}
             {!loading&&results.length>0&&(
               <div>
-                <div style={{fontSize:12,color:'var(--t3)',marginBottom:'.75rem',display:'flex',alignItems:'center',gap:8}}>
+                <div style={{fontSize:12,color:'var(--t3)',marginBottom:'.75rem',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <span style={{width:7,height:7,borderRadius:'50%',background:'var(--acc3)',display:'inline-block',boxShadow:'0 0 6px var(--acc3)'}}/>
                   {results.length} nichos{isAgency?' · expert':''} · Región: {GEO_MAP[geo]?.label??geo} · {currency}
+                  <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+                    {isPro&&results.length>1&&(
+                      <button onClick={handleExecutiveReport} disabled={reportLoading}
+                        style={{padding:'5px 12px',borderRadius:14,fontSize:11,fontWeight:600,cursor:reportLoading?'wait':'pointer',border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.1)',color:'var(--acc)',fontFamily:'var(--font-body)',opacity:reportLoading?.6:1}}>
+                        {reportLoading?'⏳ Generando...':'📊 Informe ejecutivo'}
+                      </button>
+                    )}
+                    {compareSet.size>=2&&(
+                      <button onClick={()=>setShowCompare(true)}
+                        style={{padding:'5px 12px',borderRadius:14,fontSize:11,fontWeight:700,cursor:'pointer',border:'1px solid rgba(0,229,195,0.4)',background:'rgba(0,229,195,0.12)',color:'var(--acc3)',fontFamily:'var(--font-body)'}}>
+                        🆚 Comparar ({compareSet.size})
+                      </button>
+                    )}
+                    <button onClick={()=>setCeoMode(v=>!v)}
+                      style={{padding:'5px 12px',borderRadius:14,fontSize:11,fontWeight:600,cursor:'pointer',border:`1px solid ${ceoMode?'rgba(124,111,255,0.55)':'rgba(255,255,255,0.1)'}`,background:ceoMode?'rgba(124,111,255,0.18)':'transparent',color:ceoMode?'var(--acc)':'var(--t3)',fontFamily:'var(--font-body)'}}>
+                      💼 {ceoMode?'Modo CEO ✓':'Modo CEO'}
+                    </button>
+                  </div>
                 </div>
+                {ceoMode?(
+                  <CeoMode results={results} onSelect={setSelected}/>
+                ):(
                 <div style={{display:'grid',gap:12}}>
                   {results.map((n,i)=>{
                     const src=(n as any).trend_source??'organic'
@@ -588,6 +650,37 @@ export default function Dashboard() {
                             </button>
                             {isPro&&(
                               <button
+                                onClick={(e)=>{ e.stopPropagation(); watchNiche(n) }}
+                                disabled={watchedNiches.has(n.name)}
+                                title={watchedNiches.has(n.name)?'Vigilando este nicho':'Vigilar cambios en este nicho'}
+                                style={{
+                                  display:'flex',alignItems:'center',gap:5,
+                                  background:watchedNiches.has(n.name)?'rgba(124,111,255,0.18)':'rgba(255,255,255,0.06)',
+                                  border:`1px solid ${watchedNiches.has(n.name)?'rgba(124,111,255,0.4)':'rgba(255,255,255,0.12)'}`,
+                                  color:watchedNiches.has(n.name)?'var(--acc)':'var(--t2)',
+                                  borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                  cursor:watchedNiches.has(n.name)?'default':'pointer',fontFamily:'var(--font-body)',
+                                }}>
+                                {watchedNiches.has(n.name)?'👁 Vigilando':'👁 Vigilar'}
+                              </button>
+                            )}
+                            {isPro&&(
+                              <button
+                                onClick={(e)=>{ e.stopPropagation(); setCompareSet(s=>{ const n2=new Set(s); if(n2.has(n.name))n2.delete(n.name); else if(n2.size<3)n2.add(n.name); return n2 }) }}
+                                title={compareSet.has(n.name)?'Quitar del comparador':'Añadir al comparador (máx. 3)'}
+                                style={{
+                                  display:'flex',alignItems:'center',gap:5,
+                                  background:compareSet.has(n.name)?'rgba(0,229,195,0.18)':'rgba(255,255,255,0.06)',
+                                  border:`1px solid ${compareSet.has(n.name)?'rgba(0,229,195,0.4)':'rgba(255,255,255,0.12)'}`,
+                                  color:compareSet.has(n.name)?'var(--acc3)':'var(--t2)',
+                                  borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                  cursor:'pointer',fontFamily:'var(--font-body)',
+                                }}>
+                                {compareSet.has(n.name)?'✓ Comparando':'🆚 Comparar'}
+                              </button>
+                            )}
+                            {isPro&&(
+                              <button
                                 onClick={async(e)=>{
                                   e.stopPropagation()
                                   setPdfLoading(true)
@@ -615,6 +708,7 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
+                )}
               </div>
             )}
 
@@ -850,6 +944,16 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Comparador de nichos — Pro/Agency */}
+      {showCompare&&(
+        <CompareModal
+          niches={results.filter(n=>compareSet.has(n.name))}
+          plan={profile?.plan??'free'}
+          onClose={()=>setShowCompare(false)}
+          onSelectNiche={(n)=>{ setShowCompare(false); setSelected(n) }}
+        />
       )}
 
       {/* Badge Agency */}

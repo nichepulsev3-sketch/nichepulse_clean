@@ -112,8 +112,6 @@ const SRC_PILL: Record<string,[string,string]> = {
   amazon: ['#ff9900','📦 Amazon'],
   organic:['#7c6fff','🤖 IA'    ],
 }
-function scoreColor(s:number){ return s>=90?'#00e5c3':s>=80?'#7c6fff':'#ff6b9d' }
-function scoreGlow(s:number){ return s>=90?'0 0 10px rgba(0,229,195,0.5)':s>=80?'0 0 10px rgba(124,111,255,0.5)':'0 0 10px rgba(255,107,157,0.5)' }
 type Tab = 'search'|'history'|'affiliate'|'plans'
 
 // ── Link directo al proveedor ─────────────────────────────────

@@ -176,6 +176,17 @@ function enrichResult(raw: any): NicheResult {
   return raw as NicheResult
 }
 
+/* ── Detección robusta de timeouts ────────────────────────────────
+ * Algunas versiones/errores del SDK de Anthropic/OpenAI no rechazan
+ * con un DOMException `name === 'AbortError'` cuando el AbortController
+ * dispara — a veces envuelven el abort en su propio tipo de error
+ * (p.ej. APIConnectionError) cuyo `.message` es "Request was aborted."
+ * sin que `.name` lo refleje. Comprobamos ambas señales para no dejar
+ * pasar timeouts reales como errores genéricos sin diagnosticar. */
+function isAbortError(err: any): boolean {
+  return err?.name === 'AbortError' || /aborted|abort/i.test(err?.message ?? '')
+}
+
 /* ── Llamadas individuales con timeout ──────────────────────────── */
 async function callClaude(model: string, system: string, prompt: string, maxTokens: number): Promise<NicheResult[]> {
   const start = Date.now()
@@ -194,7 +205,13 @@ async function callClaude(model: string, system: string, prompt: string, maxToke
     return parsed
   } catch (err: any) {
     clearTimeout(timer)
-    if (err?.name==='AbortError') throw new Error(`Claude: timeout`)
+    // Log completo para diagnóstico (status HTTP, tipo de error) — el mensaje
+    // genérico que ve el usuario no debe ser la única pista que quede en logs.
+    console.error(`[claude] ❌ ${Date.now()-start}ms → status:${err?.status ?? '?'} name:${err?.name ?? '?'} msg:${err?.message ?? err}`)
+    if (isAbortError(err)) throw new Error(`Claude: timeout (${TIMEOUT.claude/1000}s)`)
+    if (err?.status === 401) throw new Error('Claude: 401 API key inválida')
+    if (err?.status === 402) throw new Error('Claude: 402 sin crédito')
+    if (err?.status === 429) throw new Error('Claude: 429 rate limit')
     throw err
   }
 }
@@ -220,7 +237,7 @@ async function callOpenAI(model: string, system: string, prompt: string): Promis
     return parsed
   } catch (err: any) {
     clearTimeout(timer)
-    if (err?.name==='AbortError') throw new Error('OpenAI: timeout')
+    if (isAbortError(err)) throw new Error('OpenAI: timeout')
     if (err?.status===429 || err?.message?.includes('quota') || err?.message?.includes('exceeded')) {
       console.warn(`[openai] ⚠️ Sin crédito (429)`)
       throw new Error('OpenAI: sin crédito')
@@ -285,11 +302,16 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
       const retry = await callClaude(cfg.claude, system, userPrompt, cfg.tokens)
       return retry.slice(0, maxResults)
     } catch (err: any) {
+      // Log completo (no solo el mensaje reducido al usuario) para que el
+      // error real quede en los logs de Railway/Vercel y se pueda diagnosticar
+      // sin tener que reproducirlo a ciegas.
+      console.error('[multi-ia] ❌ Reintento con Claude también falló:', err?.message ?? err)
       const msg = err?.message ?? ''
       if (msg.includes('401')) throw new Error('ANTHROPIC_API_KEY inválida. Compruébala en Railway → Variables.')
       if (msg.includes('429')) throw new Error('Límite de IA alcanzado. Espera 1 minuto.')
       if (msg.includes('402') || msg.includes('credit')) throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
-      throw new Error('Error en el motor Multi-IA. Inténtalo de nuevo.')
+      if (msg.includes('timeout')) throw new Error(`El motor de IA tardó demasiado en responder (>${TIMEOUT.claude/1000}s). Puede ser un problema temporal de conexión con Anthropic — inténtalo de nuevo en un minuto.`)
+      throw new Error(`Error en el motor Multi-IA: ${msg || 'desconocido'}. Inténtalo de nuevo.`)
     }
   }
 }

@@ -5,6 +5,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
+import { jsonrepair } from 'jsonrepair'
 import { getTrends, buildTrendContext } from './trends'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
@@ -173,7 +174,8 @@ Estructura OBLIGATORIA por nicho (todos los campos requeridos):
 }
 
 REGLAS CRÍTICAS:
-- Comillas dobles siempre. Sin saltos de línea dentro de strings.
+- Comillas dobles siempre para JSON. Sin saltos de línea literales dentro de ningún string.
+- PROHIBIDO usar comillas dobles (") DENTRO del texto de cualquier valor (reasons, executive_summary, score_improvement, etc.) para citar o enfatizar una palabra — eso rompe el JSON. Si necesitas citar o enfatizar algo dentro de un texto, usa comillas simples (') o ningún signo. Ejemplo INCORRECTO: "reasons": ["Buscan resolución "4K" real"]. Ejemplo CORRECTO: "reasons": ["Buscan resolución '4K' real"].
 - Sé específico y basa cada afirmación en las señales de mercado disponibles; evita cifras genéricas sin justificación.
 - Los 12 "scores" son OBLIGATORIOS y cada uno debe llevar entre 2 y 4 "reasons" cortos (máximo 6 palabras cada uno, sin frases largas) que expliquen concretamente ESE valor — nunca dejes reasons vacío ni repitas el mismo motivo en varios scores.
 - "competition", "saturation" y "risk": un valor ALTO significa PEOR para el usuario (mucha competencia, mucha saturación, mucho riesgo) — sé consistente con esa dirección.
@@ -220,11 +222,26 @@ function repairTruncatedArray(text: string): any[] | null {
 /* ── Parser JSON robusto ────────────────────────────────────────── */
 function parse(text: string): NicheResult[] | null {
   const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+  // Sub-string entre el primer '[' y el último ']' — recorta prosa o
+  // fences sobrantes antes de intentar reparar, tanto con jsonrepair
+  // como con el resto de intentos.
+  const trimmed = (() => {
+    const s = clean.indexOf('['), e = clean.lastIndexOf(']')
+    return s >= 0 && e > s ? clean.slice(s, e + 1) : clean
+  })()
+
   const attempts = [
     () => JSON.parse(clean),
     () => { const s=clean.indexOf('['), e=clean.lastIndexOf(']'); if(s>=0&&e>s) return JSON.parse(clean.slice(s,e+1)) },
     () => JSON.parse(clean.replace(/,(\s*[}\]])/g,'$1')),
     () => { const s=clean.indexOf('['), e=clean.lastIndexOf(']'); if(s>=0&&e>s) return JSON.parse(clean.slice(s,e+1).replace(/,(\s*[}\]])/g,'$1')) },
+    // jsonrepair (librería): repara comillas sin escapar, saltos de línea
+    // literales dentro de strings, comas colgantes y estructuras incompletas
+    // — la causa más probable cuando stop_reason es "end_turn" (el modelo
+    // SÍ terminó de generar, el problema es un carácter mal escapado en
+    // algún texto libre, no un corte a mitad de generación).
+    () => JSON.parse(jsonrepair(trimmed)),
+    () => JSON.parse(jsonrepair(clean)),
     () => repairTruncatedArray(clean),
     () => {
       const s=clean.indexOf('['); if(s<0) return null

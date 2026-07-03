@@ -70,7 +70,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
   setFill(WHITE)
   doc.circle(MARGIN + CW - 14, Y + 19, 11, 'F')
   setFont(14, 'bold', accentR)
-  doc.text(String(niche.score), MARGIN + CW - 18, Y + 22)
+  doc.text(String(niche.opportunity_score ?? niche.profit_score ?? 0), MARGIN + CW - 18, Y + 22)
   setFont(6, 'normal', GRAY)
   doc.text('Score', MARGIN + CW - 18.5, Y + 27)
 

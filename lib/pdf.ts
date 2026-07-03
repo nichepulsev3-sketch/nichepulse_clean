@@ -171,7 +171,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
 
   // ── Insights (dos columnas) ───────────────────────────────────
   section('💡 Insights del Multi-motor de IA', accentR)
-  niche.insights.forEach((ins, i) => bulletItem(ins, accentR))
+  (niche.strengths ?? niche.insights ?? []).forEach((ins: string) => bulletItem(ins, accentR))
 
   // ── Riesgos ───────────────────────────────────────────────────
   if (niche.risks && niche.risks.length) {

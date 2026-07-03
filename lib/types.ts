@@ -45,6 +45,7 @@ export interface NicheResult {
 
   // Metadata
   tags:          string[]
+  insights?:     string[]   // Legacy alias → usar strengths
   trend_source:  SignalSource
   ad_channels:   string[]
 

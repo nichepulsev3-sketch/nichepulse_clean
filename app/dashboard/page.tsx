@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { downloadNichePDF } from '@/lib/pdf'
 import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile, scoreColor } from '@/lib/supabase'
 import TrendsPanel from '@/components/TrendsPanel'
+import ScoreGrid from '@/components/ScoreGrid'
+import VerdictBadge from '@/components/VerdictBadge'
 
 // ── Regiones por continente ───────────────────────────────────
 const GEO_REGIONS: Record<string, {code:string;label:string;currency:string}[]> = {
@@ -553,7 +555,8 @@ export default function Dashboard() {
                             <div style={{fontSize:9,color:'var(--t3)'}}>Score</div>
                           </div>
                         </div>
-                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:'.7rem'}}>
+                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:'.7rem',alignItems:'center'}}>
+                          <VerdictBadge verdict={n.verdict} />
                           {n.tags.map(t=>{const[cls,lbl]=TAG_MAP[t]??['tag-trend',t];return<span key={t} className={`tag ${cls}`}>{lbl}</span>})}
                           <span style={{fontSize:11,padding:'3px 7px',borderRadius:8,background:`${srcColor}20`,color:srcColor,border:`0.5px solid ${srcColor}40`,fontWeight:500}}>{srcLabel}</span>
                         </div>
@@ -743,11 +746,26 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Veredicto — qué hacer con este nicho, antes que ningún otro dato */}
+            <VerdictBadge verdict={selected.verdict} reason={selected.verdict_reason} size="lg" />
+
             {/* Tags */}
             <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:'1rem'}}>
               {selected.tags.map(t=>{const[cls,lbl]=TAG_MAP[t]??['tag-trend',t];return<span key={t} className={`tag ${cls}`}>{lbl}</span>})}
               <span style={{fontSize:11,padding:'3px 8px',borderRadius:8,background:'rgba(0,229,195,0.1)',color:'var(--acc3)',border:'0.5px solid rgba(0,229,195,0.3)',fontWeight:600}}>{currency}</span>
             </div>
+
+            {/* Motor de Inteligencia — 12 scores explicados (Pro/Agency) */}
+            {isPro ? (
+              <div style={{marginBottom:'1rem'}}>
+                <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'1px',color:'var(--t3)',marginBottom:'.5rem'}}>Motor de Inteligencia · toca un score para ver por qué</div>
+                <ScoreGrid scores={selected.scores} compact />
+              </div>
+            ) : (
+              <div style={{marginBottom:'1rem',background:'rgba(124,111,255,0.05)',borderRadius:8,padding:'10px 12px',textAlign:'center'}}>
+                <div style={{fontSize:12,color:'var(--t3)'}}>🔒 Desglose completo de 12 scores explicados disponible en Pro</div>
+              </div>
+            )}
 
             {/* Métricas básicas */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:'1rem'}}>

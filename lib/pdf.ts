@@ -3,6 +3,14 @@
  * Usa jsPDF para crear el PDF directamente en memoria y descargarlo.
  */
 import type { NicheResult } from './supabase'
+import { SCORE_META, SCORE_ORDER, scoreCardColor } from './types'
+
+// jsPDF trabaja en RGB, el Motor de Inteligencia expone colores en hex —
+// pequeño conversor para no duplicar la paleta de scoreCardColor aquí.
+function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.replace('#', '')
+  return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)]
+}
 
 // Importación dinámica para evitar SSR issues
 async function getJsPDF() {
@@ -127,6 +135,35 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     setFont(8, 'normal', DARK)
     lines.forEach((line, li) => doc.text(line, MARGIN + 5, Y + 4.5 + li * 4.5))
     Y += blockH + 2
+  }
+
+  // ── Veredicto del Motor de Inteligencia ─────────────────────────
+  // Lo primero que debe leer el usuario: qué hacer, no solo un número.
+  if (niche.verdict) {
+    const vColor: [number, number, number] = niche.verdict === 'invertir' ? TEAL : niche.verdict === 'evitar' ? PINK : ORANGE
+    const vLabel = niche.verdict === 'invertir' ? '✅ INVERTIR' : niche.verdict === 'evitar' ? '🚫 EVITAR' : '⏳ ESPERAR'
+    section('Veredicto del Motor de Inteligencia', vColor)
+    const lines = wrap(`${vLabel}${niche.verdict_reason ? ' — ' + niche.verdict_reason : ''}`, CW - 10)
+    const h = lines.length * 4.5 + 6
+    checkY(h + 4)
+    setFill(LIGHT); doc.roundedRect(MARGIN, Y, CW, h, 2, 2, 'F')
+    setDraw(vColor); doc.setLineWidth(0.6); doc.rect(MARGIN, Y, CW, h, 'S')
+    setFont(9, 'bold', vColor)
+    lines.forEach((l, i) => doc.text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
+    Y += h + 5
+  }
+
+  // ── Motor de Inteligencia — 12 scores explicados (Pro/Agency) ───
+  if (niche.scores) {
+    section('🧠 Motor de Inteligencia — 12 scores', accentR)
+    SCORE_ORDER.forEach(key => {
+      const card = niche.scores?.[key]
+      if (!card) return
+      const meta = SCORE_META[key]
+      const color = hexToRgb(scoreCardColor(key, card.value))
+      const reasonsTxt = card.reasons.length ? ` — ${card.reasons.join(', ')}` : ''
+      bulletItem(`${meta.icon} ${meta.label}: ${card.value}/100${reasonsTxt}`, color)
+    })
   }
 
   // ── Agency: veredicto experto y ROI ─────────────────────────

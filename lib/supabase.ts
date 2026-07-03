@@ -2,8 +2,8 @@ import { createBrowserClient } from '@supabase/ssr'
 import { createClient }        from '@supabase/supabase-js'
 
 // Re-export types from centralized types file
-export type { NicheResult, Profile, Plan, FavoriteNiche, SmartAlert, SearchHistory, OnboardingData } from './types'
-export { PLAN_LIMITS, canSearch, searchesLeft, scoreColor, scoreLabel, scoreGradient } from './types'
+export type { NicheResult, Profile, Plan, FavoriteNiche, SmartAlert, SearchHistory, OnboardingData, ScoreKey, ScoreCard, IntelligenceScores, Verdict } from './types'
+export { PLAN_LIMITS, canSearch, searchesLeft, scoreColor, scoreLabel, scoreGradient, SCORE_META, SCORE_ORDER, VERDICT_META, scoreCardColor } from './types'
 
 const SUPA_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPA_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

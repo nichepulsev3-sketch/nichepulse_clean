@@ -6,46 +6,83 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
 import { getTrends, buildTrendContext } from './trends'
-import type { NicheResult, Plan, SignalSource } from './types'
+import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict } from './types'
+import { SCORE_ORDER } from './types'
 
 const anthropic    = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(), maxRetries: 0 })
 const openaiClient = process.env.OPENAI_API_KEY?.trim()
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY.trim(), maxRetries: 0 })
   : null
 
-/* ── Configuración de modelos por plan ─────────────────────────── */
+/* ── Configuración de modelos por plan ───────────────────────────
+ * Los presupuestos de tokens subieron respecto a la versión anterior
+ * porque el Motor de Inteligencia pide 12 scorecards explicadas por
+ * nicho (antes era un único signals plano) — es más payload, pero es
+ * la diferencia entre "un número" y "una decisión justificada". */
 const AI_CONFIG = {
-  free:   { claude: 'claude-haiku-4-5-20251001', openai: null,         tokens: 2500 },
-  pro:    { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 5000 },
-  agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 6000 },
+  free:   { claude: 'claude-haiku-4-5-20251001', openai: null,         tokens: 4000 },
+  pro:    { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 7000 },
+  agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8000 },
 }
 
-const TIMEOUT = { claude: 28000, openai: 24000, retry: 30000 }
+// Timeouts ampliados: el esquema más rico tarda más en generarse.
+const TIMEOUT = { claude: 40000, openai: 35000 }
 
-/* ── Opportunity Score Calculator ──────────────────────────────── */
-function calculateOpportunityScore(signals: any): number {
-  if (!signals || typeof signals !== 'object') return 70
-  const weights = {
-    demand:      0.20,
-    competition: 0.18,  // high = bueno (baja competencia)
-    margin:      0.15,
-    trend:       0.12,
-    tiktok:      0.10,
-    seo:         0.08,
-    amazon:      0.07,
-    virality:    0.05,
-    scalability: 0.03,
-    saturation:  0.02,  // high = bueno (baja saturación)
+/* ── Motor de Inteligencia: normalización y cálculo defensivo ─────
+ * La IA genera los 12 scores directamente (valor + motivos) porque
+ * son ella la que puede justificar cada número — no fingimos calcular
+ * "de verdad" un score de SEO o de riesgo a partir de datos que no
+ * tenemos. Lo que SÍ hacemos aquí es blindar la respuesta: si la IA
+ * omite un score, no devuelve el formato exacto, o se inventa un
+ * texto en vez de un objeto, esta función lo normaliza a un formato
+ * seguro en vez de dejar que la UI reciba `undefined` y rompa. */
+function normalizeScores(raw: any): IntelligenceScores {
+  const out = {} as IntelligenceScores
+  for (const key of SCORE_ORDER) {
+    const card = raw?.[key]
+    const value = typeof card?.value === 'number' && isFinite(card.value)
+      ? Math.max(0, Math.min(100, Math.round(card.value)))
+      : 50
+    const reasons = Array.isArray(card?.reasons)
+      ? card.reasons.filter((r: any) => typeof r === 'string' && r.trim()).slice(0, 4)
+      : []
+    out[key] = { value, reasons } as ScoreCard
   }
-  let score = 0
-  let totalWeight = 0
-  for (const [key, weight] of Object.entries(weights)) {
-    const val = signals[key] ?? 5
-    const normalized = Math.max(0, Math.min(10, Number(val)))
-    score += normalized * 10 * weight
-    totalWeight += weight
+  // Si la IA no dio un "opportunity" fiable (o vino igual que el resto,
+  // señal de que no lo calculó de verdad), lo recomponemos nosotros con
+  // una media ponderada del resto de scores — así opportunity_score
+  // nunca depende de un solo campo que la IA pudo rellenar sin pensar.
+  if (!raw?.opportunity || typeof raw.opportunity.value !== 'number') {
+    out.opportunity.value = calculateOpportunityFromScores(out)
   }
-  return Math.round(score / totalWeight)
+  return out
+}
+
+function calculateOpportunityFromScores(scores: IntelligenceScores): number {
+  // "invert:true" en SCORE_META (competition, saturation, risk) significa
+  // que un valor alto es MALO — se usa (100 - value) para que pesen en la
+  // dirección correcta dentro de la media ponderada.
+  const weights: Partial<Record<ScoreKey, number>> = {
+    demand: 0.20, growth: 0.15, competition: 0.15, profit: 0.15,
+    trend: 0.10, social: 0.08, seo: 0.07, advertising: 0.05,
+    stability: 0.03, saturation: 0.01, risk: 0.01,
+  }
+  const invert = new Set<ScoreKey>(['competition', 'saturation', 'risk'])
+  let sum = 0, total = 0
+  for (const [key, weight] of Object.entries(weights) as [ScoreKey, number][]) {
+    const val = scores[key]?.value ?? 50
+    const adjusted = invert.has(key) ? 100 - val : val
+    sum += adjusted * weight
+    total += weight
+  }
+  return Math.round(sum / total)
+}
+
+function normalizeVerdict(raw: any, opportunityScore: number): Verdict {
+  if (raw === 'invertir' || raw === 'esperar' || raw === 'evitar') return raw
+  if (opportunityScore >= 75) return 'invertir'
+  if (opportunityScore >= 50) return 'esperar'
+  return 'evitar'
 }
 
 /* ── Prompt del sistema ─────────────────────────────────────────── */
@@ -64,13 +101,23 @@ function buildSystem(plan: Plan, trends: string): string {
 Estructura OBLIGATORIA por nicho (todos los campos requeridos):
 {
   "name": "nombre específico del nicho",
-  "opportunity_score": 82,
   "confidence": 88,
-  "signals": {
-    "demand": 8, "competition": 7, "margin": 8, "trend": 9,
-    "seo": 6, "tiktok": 8, "amazon": 7, "virality": 7,
-    "scalability": 8, "saturation": 6
+  "scores": {
+    "opportunity":  {"value": 82, "reasons": ["motivo corto 1", "motivo corto 2", "motivo corto 3"]},
+    "demand":       {"value": 78, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "growth":       {"value": 74, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "competition":  {"value": 35, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "saturation":   {"value": 30, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "profit":       {"value": 80, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "advertising":  {"value": 65, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "seo":          {"value": 55, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "social":       {"value": 70, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "trend":        {"value": 72, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "stability":    {"value": 60, "reasons": ["motivo corto 1", "motivo corto 2"]},
+    "risk":         {"value": 25, "reasons": ["motivo corto 1", "motivo corto 2"]}
   },
+  "verdict": "invertir",
+  "verdict_reason": "Frase directa y accionable de máximo 20 palabras sobre qué hacer ahora con este nicho.",
   "market_size": "$2.4B",
   "margin": "52-68%",
   "avg_ticket": "$45-85",
@@ -115,8 +162,11 @@ Estructura OBLIGATORIA por nicho (todos los campos requeridos):
 
 REGLAS CRÍTICAS:
 - Comillas dobles siempre. Sin saltos de línea dentro de strings.
-- Datos REALES y VERIFICADOS, nunca genéricos.
-- opportunity_score: calcula con precisión usando signals (0-100).
+- Sé específico y basa cada afirmación en las señales de mercado disponibles; evita cifras genéricas sin justificación.
+- Los 12 "scores" son OBLIGATORIOS y cada uno debe llevar entre 2 y 4 "reasons" cortos (máximo 6 palabras cada uno, sin frases largas) que expliquen concretamente ESE valor — nunca dejes reasons vacío ni repitas el mismo motivo en varios scores.
+- "competition", "saturation" y "risk": un valor ALTO significa PEOR para el usuario (mucha competencia, mucha saturación, mucho riesgo) — sé consistente con esa dirección.
+- "opportunity": puntuación compuesta — súbela solo si el resto de scores (demanda, crecimiento, margen, baja competencia) realmente la respaldan.
+- "verdict": "invertir" solo si opportunity >= 75 y no hay riesgos graves en "risks"; "evitar" si opportunity < 50 o hay un riesgo crítico; si no, "esperar". "verdict_reason" debe ser una frase directa y accionable, no una descripción.
 - executive_summary: máximo 60 palabras, con datos concretos.
 - insights/strengths/weaknesses: máximo 15 palabras cada uno.
 - getting_started: específico con semanas y presupuesto.${trends ? `\nSEÑALES EN VIVO (prioriza estos nichos):\n${trends}` : ''}`
@@ -152,26 +202,21 @@ function parse(text: string): NicheResult[] | null {
 
 /* ── Enriquecer resultado con campos derivados ──────────────────── */
 function enrichResult(raw: any): NicheResult {
-  // Calcular opportunity_score si no viene o es genérico
-  if (!raw.opportunity_score || raw.opportunity_score === raw.profit_score) {
-    raw.opportunity_score = calculateOpportunityScore(raw.signals) || raw.score || 70
-  }
-  // Asegurar backward compat
-  raw.profit_score  = raw.profit_score  || raw.opportunity_score
+  // Motor de Inteligencia: normalizar los 12 scores (blindado ante
+  // respuestas incompletas/mal formadas de la IA) y derivar el
+  // opportunity_score/profit_score "planos" que el resto de la app
+  // (tarjetas, PDF) sigue leyendo directamente.
+  raw.scores = normalizeScores(raw.scores)
+  raw.opportunity_score = raw.scores.opportunity.value
+  raw.profit_score  = raw.profit_score || raw.scores.profit.value || raw.opportunity_score
   raw.score         = raw.opportunity_score
   raw.confidence    = raw.confidence    || Math.round(raw.opportunity_score * 0.9 + Math.random() * 10)
   raw.insights      = raw.insights      || raw.strengths?.slice(0,3) || []
   raw.trend_source  = raw.trend_source  || 'organic'
-
-  // Asegurar signals
-  if (!raw.signals || typeof raw.signals !== 'object') {
-    raw.signals = {
-      demand: raw.demand_level || 7, competition: 10-(raw.competition_level||5),
-      margin: 7, trend: Math.min(10, Math.floor((raw.trend_pct||30)/10)),
-      seo: 6, tiktok: 7, amazon: 6, virality: raw.virality_level || 6,
-      scalability: raw.scalability_level || 7, saturation: 6,
-    }
-  }
+  raw.verdict        = normalizeVerdict(raw.verdict, raw.opportunity_score)
+  raw.verdict_reason = typeof raw.verdict_reason === 'string' && raw.verdict_reason.trim()
+    ? raw.verdict_reason
+    : (raw.conclusion || raw.final_recommendation || '')
 
   return raw as NicheResult
 }
@@ -216,14 +261,14 @@ async function callClaude(model: string, system: string, prompt: string, maxToke
   }
 }
 
-async function callOpenAI(model: string, system: string, prompt: string): Promise<NicheResult[]> {
+async function callOpenAI(model: string, system: string, prompt: string, maxTokens: number): Promise<NicheResult[]> {
   if (!openaiClient) throw new Error('OpenAI no configurado')
   const start = Date.now()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT.openai)
   try {
     const res = await openaiClient.chat.completions.create(
-      { model, max_tokens: 3500, temperature: 0.2, messages: [
+      { model, max_tokens: maxTokens, temperature: 0.2, messages: [
         { role: 'system', content: `${system}\nResponde SIEMPRE con un array JSON válido y nada más.` },
         { role: 'user', content: prompt },
       ]},
@@ -288,7 +333,7 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
     callClaude(cfg.claude, system, userPrompt, cfg.tokens),
   ]
   if (cfg.openai && openaiClient) {
-    promises.push(callOpenAI(cfg.openai, system, userPrompt))
+    promises.push(callOpenAI(cfg.openai, system, userPrompt, cfg.tokens))
   }
 
   console.log(`[multi-ia] plan:${plan} | ${promises.length} IAs | geo:${geo}`)

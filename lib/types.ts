@@ -9,7 +9,10 @@ export type Plan = 'free' | 'pro' | 'agency'
 /* ── Señales por fuente ──────────────────────────────────────────── */
 export type SignalSource = 'google' | 'tiktok' | 'amazon' | 'organic'
 
-/* ── Signals breakdown para Opportunity Score ─────────────────── */
+/* ── Signals breakdown para Opportunity Score (legacy, v2) ─────
+ * Mantenido como opcional por compatibilidad con búsquedas guardadas
+ * antes de la migración al Motor de Inteligencia (IntelligenceScores,
+ * más abajo). Nada en la UI actual lee estos campos directamente. */
 export interface OpportunitySignals {
   demand:       number  // 0-10: volumen de búsqueda / interés del consumidor
   competition:  number  // 0-10: 10 = baja competencia (invertido para que alto sea bueno)
@@ -23,13 +26,81 @@ export interface OpportunitySignals {
   saturation:   number  // 0-10: 10 = mercado muy poco saturado (invertido)
 }
 
+/* ── Motor de Inteligencia — Scores explicados ──────────────────
+ * Sustituye el "un solo número" por 12 puntuaciones independientes,
+ * cada una con sus propios motivos (2-4 frases cortas). Ninguna
+ * puntuación debe mostrarse sin su explicación: es la diferencia
+ * entre "mostrar datos" y "ayudar a decidir".
+ * ──────────────────────────────────────────────────────────────── */
+export type ScoreKey =
+  | 'opportunity' | 'demand' | 'growth' | 'competition' | 'saturation'
+  | 'profit' | 'advertising' | 'seo' | 'social' | 'trend' | 'stability' | 'risk'
+
+export interface ScoreCard {
+  value:   number    // 0-100
+  reasons: string[]  // 2-4 motivos cortos y concretos que justifican el valor
+}
+
+export type IntelligenceScores = Record<ScoreKey, ScoreCard>
+
+/* Metadatos de presentación por score. `invert:true` significa que un
+ * valor ALTO es MALO (competencia, saturación, riesgo) — el color y la
+ * lectura en pantalla deben invertirse para que "verde" siga significando
+ * "bueno para el usuario" en todos los casos. */
+export const SCORE_META: Record<ScoreKey, { label: string; icon: string; invert?: boolean; help: string }> = {
+  opportunity: { label: 'Oportunidad', icon: '🎯', help: 'Puntuación compuesta: resume si merece la pena entrar en este nicho ahora.' },
+  demand:      { label: 'Demanda',     icon: '📊', help: 'Volumen e interés real del consumidor por este producto/nicho.' },
+  growth:      { label: 'Crecimiento', icon: '📈', help: 'Velocidad a la que está creciendo la demanda en el tiempo.' },
+  competition: { label: 'Competencia', icon: '⚔️', invert: true, help: 'Cuántos vendedores/marcas compiten ya por este nicho. Alto = más difícil.' },
+  saturation:  { label: 'Saturación',  icon: '🌊', invert: true, help: 'Qué tan lleno está el mercado de oferta similar. Alto = más saturado.' },
+  profit:      { label: 'Margen',      icon: '💰', help: 'Potencial de margen de beneficio sobre precio de venta.' },
+  advertising: { label: 'Publicidad',  icon: '📢', help: 'Eficiencia estimada de la inversión publicitaria (CPC, respuesta en ads).' },
+  seo:         { label: 'SEO',         icon: '🔍', help: 'Potencial de posicionamiento orgánico y volumen de búsqueda.' },
+  social:      { label: 'Social',      icon: '📱', help: 'Presencia, viralidad y engagement en redes sociales (TikTok, Reels...).' },
+  trend:       { label: 'Tendencia',   icon: '🔥', help: 'Momentum actual: qué tan "caliente" está el nicho ahora mismo.' },
+  stability:   { label: 'Estabilidad', icon: '🛡️', help: 'Qué tan predecible/duradera es la demanda (evergreen vs. moda pasajera).' },
+  risk:        { label: 'Riesgo',      icon: '⚠️', invert: true, help: 'Riesgo combinado: logístico, legal, de devoluciones y de copia. Alto = más riesgo.' },
+}
+
+export const SCORE_ORDER: ScoreKey[] = [
+  'opportunity','demand','growth','competition','saturation',
+  'profit','advertising','seo','social','trend','stability','risk',
+]
+
+/* ── Veredicto accionable ────────────────────────────────────────
+ * Cada nicho debe responder directamente "¿qué debería hacer ahora?"
+ * en vez de dejar que el usuario interprete un número. */
+export type Verdict = 'invertir' | 'esperar' | 'evitar'
+
+export const VERDICT_META: Record<Verdict, { label: string; color: string; bg: string; icon: string }> = {
+  invertir: { label: 'Invertir', color: '#2dd4bf', bg: 'rgba(45,212,191,0.14)', icon: '✅' },
+  esperar:  { label: 'Esperar',  color: '#fbbf24', bg: 'rgba(251,191,36,0.14)', icon: '⏳' },
+  evitar:   { label: 'Evitar',   color: '#f43f5e', bg: 'rgba(244,63,94,0.14)',  icon: '🚫' },
+}
+
+/* Color de un score individual respetando `invert` — así "verde" siempre
+ * significa "bueno para el usuario", nunca "número alto" a secas. */
+export function scoreCardColor(key: ScoreKey, value: number): string {
+  const meta = SCORE_META[key]
+  const v = meta.invert ? 100 - value : value
+  if (v >= 75) return '#2dd4bf'
+  if (v >= 55) return '#7c6fff'
+  if (v >= 35) return '#fbbf24'
+  return '#f43f5e'
+}
+
 /* ── Análisis de nicho enriquecido (Consultant Mode) ─────────── */
 export interface NicheResult {
   // Core
   name:             string
   opportunity_score:number   // 0-100: nuestro score propietario
   confidence:       number   // 0-100: nivel de confianza en el análisis
-  signals:          OpportunitySignals
+  signals?:         OpportunitySignals   // legacy — opcional por compatibilidad con búsquedas antiguas
+
+  // Motor de Inteligencia — 12 scores explicados + veredicto accionable
+  scores?:          IntelligenceScores
+  verdict?:         Verdict
+  verdict_reason?:  string
 
   // Market data
   market_size:      string

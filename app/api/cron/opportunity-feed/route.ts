@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }).slice(0, MAX_QUERIES_PER_RUN)
 
     // 2. Watchlist de todos los usuarios afectados, para cruce rápido.
-    const userIds = [...new Set(targets.map((t: any) => t.user_id))]
+    const userIds = Array.from(new Set(targets.map((t: any) => t.user_id)))
     const { data: watchlistRows } = userIds.length
       ? await db.from('watchlist').select('*').in('user_id', userIds)
       : { data: [] as any[] }

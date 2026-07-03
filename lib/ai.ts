@@ -25,8 +25,15 @@ const AI_CONFIG = {
   agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8000 },
 }
 
-// Timeouts ampliados: el esquema más rico tarda más en generarse.
-const TIMEOUT = { claude: 40000, openai: 35000 }
+// Timeout adaptativo por inactividad (ver callClaude/callOpenAI más abajo):
+// un plazo fijo total no tiene sentido con un esquema de 12 scorecards por
+// nicho, cuya duración de generación varía según carga del proveedor —
+// 40s fijos garantizaban timeout con max_tokens:7000-8000 (7000 tokens a
+// ritmo normal de generación ya superan 40s solo en texto, sin contar
+// colas). IDLE_LIMIT corta si el modelo deja de producir texto; HARD_LIMIT
+// es el techo de seguridad absoluto por si acaso.
+const IDLE_LIMIT = { claude: 25000, openai: 25000 }
+const HARD_LIMIT = { claude: 110000, openai: 90000 }
 
 /* ── Motor de Inteligencia: normalización y cálculo defensivo ─────
  * La IA genera los 12 scores directamente (valor + motivos) porque
@@ -232,28 +239,49 @@ function isAbortError(err: any): boolean {
   return err?.name === 'AbortError' || /aborted|abort/i.test(err?.message ?? '')
 }
 
-/* ── Llamadas individuales con timeout ──────────────────────────── */
+/* ── Llamadas individuales con timeout adaptativo (streaming) ──────
+ * En vez de esperar el mensaje completo con un plazo fijo, streameamos
+ * la respuesta: mientras el modelo siga produciendo texto activamente
+ * lo dejamos continuar (resetea el contador de inactividad en cada
+ * fragmento), y solo abortamos si se queda callado más de IDLE_LIMIT
+ * ms, o si supera el techo absoluto HARD_LIMIT. Esto refleja la
+ * realidad de generar 12 scorecards con motivos para 5-6 nichos: la
+ * duración varía con la carga del proveedor en ese momento, no es un
+ * número fijo que se pueda adivinar de antemano. */
 async function callClaude(model: string, system: string, prompt: string, maxTokens: number): Promise<NicheResult[]> {
   const start = Date.now()
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT.claude)
+  let lastActivity = Date.now()
+  let abortReason = ''
+
+  const stream = anthropic.messages.stream({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] })
+  stream.on('text', () => { lastActivity = Date.now() })
+
+  const idleTimer = setInterval(() => {
+    if (Date.now() - lastActivity > IDLE_LIMIT.claude) {
+      abortReason = `sin actividad ${IDLE_LIMIT.claude / 1000}s`
+      stream.abort()
+    }
+  }, 2000)
+  const hardTimer = setTimeout(() => {
+    abortReason = `superó el techo de ${HARD_LIMIT.claude / 1000}s`
+    stream.abort()
+  }, HARD_LIMIT.claude)
+
   try {
-    const res = await anthropic.messages.create(
-      { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] },
-      { signal: controller.signal }
-    )
-    clearTimeout(timer)
-    const text = res.content.filter(b=>b.type==='text').map(b=>(b as any).text).join('')
+    const finalMessage = await stream.finalMessage()
+    clearInterval(idleTimer); clearTimeout(hardTimer)
+    const text = finalMessage.content.filter(b=>b.type==='text').map(b=>(b as any).text).join('')
     const parsed = parse(text)
     if (!parsed) { console.error(`[claude] ${Date.now()-start}ms → JSON inválido:`, text.slice(0,300)); throw new Error('Claude: JSON inválido') }
     console.log(`[claude:${model.split('-')[1]}] ✅ ${Date.now()-start}ms → ${parsed.length} nichos`)
     return parsed
   } catch (err: any) {
-    clearTimeout(timer)
+    clearInterval(idleTimer); clearTimeout(hardTimer)
     // Log completo para diagnóstico (status HTTP, tipo de error) — el mensaje
     // genérico que ve el usuario no debe ser la única pista que quede en logs.
     console.error(`[claude] ❌ ${Date.now()-start}ms → status:${err?.status ?? '?'} name:${err?.name ?? '?'} msg:${err?.message ?? err}`)
-    if (isAbortError(err)) throw new Error(`Claude: timeout (${TIMEOUT.claude/1000}s)`)
+    if (abortReason) throw new Error(`Claude: timeout (${abortReason})`)
+    if (isAbortError(err)) throw new Error('Claude: timeout')
     if (err?.status === 401) throw new Error('Claude: 401 API key inválida')
     if (err?.status === 402) throw new Error('Claude: 402 sin crédito')
     if (err?.status === 429) throw new Error('Claude: 429 rate limit')
@@ -264,24 +292,42 @@ async function callClaude(model: string, system: string, prompt: string, maxToke
 async function callOpenAI(model: string, system: string, prompt: string, maxTokens: number): Promise<NicheResult[]> {
   if (!openaiClient) throw new Error('OpenAI no configurado')
   const start = Date.now()
+  let lastActivity = Date.now()
+  let abortReason = ''
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT.openai)
+
+  const idleTimer = setInterval(() => {
+    if (Date.now() - lastActivity > IDLE_LIMIT.openai) {
+      abortReason = `sin actividad ${IDLE_LIMIT.openai / 1000}s`
+      controller.abort()
+    }
+  }, 2000)
+  const hardTimer = setTimeout(() => {
+    abortReason = `superó el techo de ${HARD_LIMIT.openai / 1000}s`
+    controller.abort()
+  }, HARD_LIMIT.openai)
+
   try {
-    const res = await openaiClient.chat.completions.create(
-      { model, max_tokens: maxTokens, temperature: 0.2, messages: [
+    const stream = await openaiClient.chat.completions.create(
+      { model, max_tokens: maxTokens, temperature: 0.2, stream: true, messages: [
         { role: 'system', content: `${system}\nResponde SIEMPRE con un array JSON válido y nada más.` },
         { role: 'user', content: prompt },
       ]},
       { signal: controller.signal }
     )
-    clearTimeout(timer)
-    const raw = res.choices[0]?.message?.content ?? ''
+    let raw = ''
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content
+      if (delta) { raw += delta; lastActivity = Date.now() }
+    }
+    clearInterval(idleTimer); clearTimeout(hardTimer)
     const parsed = parse(raw)
     if (!parsed) throw new Error('OpenAI: JSON inválido')
     console.log(`[openai:${model}] ✅ ${Date.now()-start}ms → ${parsed.length} nichos`)
     return parsed
   } catch (err: any) {
-    clearTimeout(timer)
+    clearInterval(idleTimer); clearTimeout(hardTimer)
+    if (abortReason) throw new Error(`OpenAI: timeout (${abortReason})`)
     if (isAbortError(err)) throw new Error('OpenAI: timeout')
     if (err?.status===429 || err?.message?.includes('quota') || err?.message?.includes('exceeded')) {
       console.warn(`[openai] ⚠️ Sin crédito (429)`)
@@ -366,7 +412,7 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
       if (msg.includes('401')) throw new Error('ANTHROPIC_API_KEY inválida. Compruébala en Railway → Variables.')
       if (msg.includes('429')) throw new Error('Límite de IA alcanzado. Espera 1 minuto.')
       if (msg.includes('402') || msg.includes('credit')) throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
-      if (msg.includes('timeout')) throw new Error(`El motor de IA tardó demasiado en responder (>${TIMEOUT.claude/1000}s). Puede ser un problema temporal de conexión con Anthropic — inténtalo de nuevo en un minuto.`)
+      if (msg.includes('timeout')) throw new Error(`El motor de IA tardó demasiado en responder (${msg}). Puede ser un problema temporal de conexión con Anthropic — inténtalo de nuevo en un minuto.`)
       throw new Error(`Error en el motor Multi-IA: ${msg || 'desconocido'}. Inténtalo de nuevo.`)
     }
   }

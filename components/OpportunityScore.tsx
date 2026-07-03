@@ -22,7 +22,7 @@ const SIGNAL_LABELS: Record<string, [string, string]> = {
 }
 
 export default function OpportunityScore({ niche, size='md', showBreakdown=false }: Props) {
-  const score    = niche.opportunity_score ?? niche.score ?? 0
+  const score    = niche.opportunity_score ?? niche.profit_score ?? 0
   const confidence = niche.confidence ?? Math.round(score * 0.9)
   const color    = scoreColor(score)
   const label    = scoreLabel(score)

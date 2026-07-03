@@ -19,10 +19,15 @@ const openaiClient = process.env.OPENAI_API_KEY?.trim()
  * porque el Motor de Inteligencia pide 12 scorecards explicadas por
  * nicho (antes era un único signals plano) — es más payload, pero es
  * la diferencia entre "un número" y "una decisión justificada". */
+// claude-haiku-4-5 soporta hasta 64.000 tokens de salida (no 8.192 — ese
+// techo es de generaciones anteriores de Haiku). El log de producción
+// confirmó stop_reason:"max_tokens" con solo 4 nichos y ~8.192 tokens
+// agotados a mitad del último nicho: el modelo llevaba tiempo generando
+// bien, simplemente lo cortábamos nosotros antes de que pudiera terminar.
 const AI_CONFIG = {
-  free:   { claude: 'claude-haiku-4-5-20251001', openai: null,         tokens: 4000 },
-  pro:    { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8192 },
-  agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 8192 },
+  free:   { claude: 'claude-haiku-4-5-20251001', openai: null,         tokens: 6000  },
+  pro:    { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 14000 },
+  agency: { claude: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini',tokens: 16000 },
 }
 
 // Timeout adaptativo por inactividad (ver callClaude/callOpenAI más abajo):
@@ -33,7 +38,7 @@ const AI_CONFIG = {
 // colas). IDLE_LIMIT corta si el modelo deja de producir texto; HARD_LIMIT
 // es el techo de seguridad absoluto por si acaso.
 const IDLE_LIMIT = { claude: 25000, openai: 25000 }
-const HARD_LIMIT = { claude: 110000, openai: 90000 }
+const HARD_LIMIT = { claude: 170000, openai: 120000 }
 
 /* ── Motor de Inteligencia: normalización y cálculo defensivo ─────
  * La IA genera los 12 scores directamente (valor + motivos) porque

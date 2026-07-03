@@ -277,13 +277,6 @@ export default function Dashboard() {
   },[])
   useEffect(()=>{ supabase.auth.getUser().then(({data})=>{ if(data.user)loadProfile(data.user.id); else window.location.href='/auth/login' }) },[])
   useEffect(()=>{ fetch(`/api/trends?geo=${geo}`).catch(()=>{}) },[geo])
-  // Auto-búsqueda al llegar desde /radar o el Command Palette con ?q=palabra
-  useEffect(()=>{
-    if(autoSearchedRef.current||!profileLoaded)return
-    const p=new URLSearchParams(window.location.search)
-    const q=p.get('q')
-    if(q){ autoSearchedRef.current=true; runSearch(q); window.history.replaceState({},'','/dashboard') }
-  },[profileLoaded,runSearch])
   // Abrir pestaña concreta al llegar con ?tab=history (usado por el Command Palette)
   useEffect(()=>{
     const p=new URLSearchParams(window.location.search)
@@ -337,6 +330,15 @@ export default function Dashboard() {
     }catch{setError('Error de conexión.')}
     finally{setLoading(false)}
   },[query,filters,geo,loading])
+
+  // Auto-búsqueda al llegar desde /radar o el Command Palette con ?q=palabra
+  // (declarado después de runSearch porque es un const y no se puede referenciar antes)
+  useEffect(()=>{
+    if(autoSearchedRef.current||!profileLoaded)return
+    const p=new URLSearchParams(window.location.search)
+    const q=p.get('q')
+    if(q){ autoSearchedRef.current=true; runSearch(q); window.history.replaceState({},'','/dashboard') }
+  },[profileLoaded,runSearch])
 
   async function handleUpgrade(plan:'pro'|'agency'){
     const{data:{session}}=await supabase.auth.getSession()

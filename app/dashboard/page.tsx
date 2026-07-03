@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import { downloadNichePDF } from '@/lib/pdf'
 import { getSupabaseBrowser, searchesLeft, type NicheResult, type Profile, scoreColor } from '@/lib/supabase'
 import TrendsPanel from '@/components/TrendsPanel'
@@ -146,7 +147,7 @@ function useCountdown(profile:Profile|null):string{
 }
 
 // ── Planes inline ─────────────────────────────────────────────
-function PlansTab({onUpgrade,currentPlan='free'}:{onUpgrade:(p:'pro'|'agency')=>void;currentPlan?:string}){
+function PlansTab({onUpgrade,onManageBilling,billingLoading,currentPlan='free'}:{onUpgrade:(p:'pro'|'agency')=>void;onManageBilling:()=>void;billingLoading?:boolean;currentPlan?:string}){
   const PLANS=[
     {key:'free' as const,name:'Free',price:'$0',period:'/ siempre',grad:'',features:['5 búsquedas / día','Top 3 nichos','Score IA','❌ Análisis completo','❌ PDF exportable','❌ Links a proveedores'],cta:'Empezar gratis',dis:false},
     {key:'pro' as const,name:'Pro',price:'$19',period:'/ mes',grad:'var(--g1)',features:['Búsquedas ilimitadas','Top 8 nichos','Análisis completo en PDF','✓ Links directos a proveedores','✓ Keywords y cómo empezar','✓ Señales en vivo'],cta:'Subir a Pro',dis:false},
@@ -207,6 +208,16 @@ function PlansTab({onUpgrade,currentPlan='free'}:{onUpgrade:(p:'pro'|'agency')=>
           ))}
         </div>
       </div>
+
+      {currentPlan!=='free'&&(
+        <div style={{textAlign:'center',marginTop:'2rem'}}>
+          <button onClick={onManageBilling} disabled={billingLoading}
+            style={{padding:'10px 22px',borderRadius:24,fontSize:13,cursor:billingLoading?'wait':'pointer',border:'1px solid rgba(124,111,255,0.35)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',fontFamily:'var(--font-body)',fontWeight:500,opacity:billingLoading?.6:1}}>
+            {billingLoading?'Abriendo...':'⚙️ Gestionar facturación'}
+          </button>
+          <div style={{fontSize:11,color:'var(--t3)',marginTop:6}}>Cambia tu tarjeta, descarga facturas o cancela cuando quieras.</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -241,7 +252,10 @@ export default function Dashboard() {
   const [showTrends,   setShowTrends]   = useState(false)
   const [pdfLoading,   setPdfLoading]   = useState(false)
   const [isIOSDevice,  setIsIOSDevice]  = useState(false)
+  const [billingLoading,setBillingLoading]=useState(false)
+  const [savedNiches,  setSavedNiches]  = useState<Set<string>>(new Set())
   const lastQuery = useRef('')
+  const autoSearchedRef = useRef(false)
   const countdown = useCountdown(profile)
   const HIST_PER_PAGE = 10
   const currency = GEO_MAP[geo]?.currency ?? 'USD $'
@@ -263,12 +277,50 @@ export default function Dashboard() {
   },[])
   useEffect(()=>{ supabase.auth.getUser().then(({data})=>{ if(data.user)loadProfile(data.user.id); else window.location.href='/auth/login' }) },[])
   useEffect(()=>{ fetch(`/api/trends?geo=${geo}`).catch(()=>{}) },[geo])
+  // Auto-búsqueda al llegar desde /radar o el Command Palette con ?q=palabra
+  useEffect(()=>{
+    if(autoSearchedRef.current||!profileLoaded)return
+    const p=new URLSearchParams(window.location.search)
+    const q=p.get('q')
+    if(q){ autoSearchedRef.current=true; runSearch(q); window.history.replaceState({},'','/dashboard') }
+  },[profileLoaded,runSearch])
+  // Abrir pestaña concreta al llegar con ?tab=history (usado por el Command Palette)
+  useEffect(()=>{
+    const p=new URLSearchParams(window.location.search)
+    const t=p.get('tab') as Tab|null
+    if(t&&['search','history','affiliate','plans'].includes(t)){
+      setTab(t); if(t==='history')loadHistory(1)
+      window.history.replaceState({},'','/dashboard')
+    }
+  },[])
   useEffect(()=>{ if(countdown==='¡Ahora!'&&profile){ const id=setTimeout(()=>loadProfile(profile.id),1000); return()=>clearTimeout(id) } },[countdown])
 
   async function loadProfile(id:string){
     const{data}=await supabase.from('profiles').select('*').eq('id',id).single()
     if(data)setProfile(data as Profile)
     setProfileLoaded(true)
+  }
+
+  async function saveFavorite(niche:NicheResult){
+    const{data:{user}}=await supabase.auth.getUser(); if(!user)return
+    const key=niche.name
+    if(savedNiches.has(key))return
+    setSavedNiches(s=>new Set(s).add(key))
+    const{error}=await supabase.from('favorites').insert({user_id:user.id,niche_data:niche})
+    if(error){ setSavedNiches(s=>{const n=new Set(s);n.delete(key);return n}); console.error('[favorites]',error) }
+  }
+
+  async function handleManageBilling(){
+    setBillingLoading(true)
+    try{
+      const{data:{session}}=await supabase.auth.getSession()
+      if(!session){window.location.href='/auth/login';return}
+      const res=await fetch('/api/create-portal-session',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`}})
+      const{url,error}=await res.json()
+      if(error){alert(error);return}
+      window.location.href=url
+    }catch{ alert('No se pudo abrir el portal de facturación.') }
+    finally{ setBillingLoading(false) }
   }
 
   const runSearch=useCallback(async(override?:string)=>{
@@ -341,6 +393,14 @@ export default function Dashboard() {
               {isMobile?t.icon:t.label}
             </button>
           ))}
+          <Link href="/radar" title="Radar de nichos"
+            style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(0,229,195,0.3)',background:'rgba(0,229,195,0.08)',color:'var(--acc3)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+            {isMobile?'📡':'📡 Radar'}
+          </Link>
+          <Link href="/favorites" title="Mis favoritos"
+            style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(255,209,102,0.3)',background:'rgba(255,209,102,0.08)',color:'#ffd166',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+            {isMobile?'⭐':'⭐ Favoritos'}
+          </Link>
           <a href="/download" title="Descargar app"
             style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
             {isMobile?'⬇':'⬇ App'}
@@ -506,29 +566,45 @@ export default function Dashboard() {
                         <div className="score-bar" style={{marginTop:10}}><div className="score-fill" style={{width:`${n.profit_score}%`}}/></div>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8}}>
                           <span style={{fontSize:11,color:'var(--t3)'}}>Pulsa para ver detalles →</span>
-                          {isPro&&(
+                          <div style={{display:'flex',gap:6,flexShrink:0}}>
                             <button
-                              onClick={async(e)=>{
-                                e.stopPropagation()
-                                setPdfLoading(true)
-                                try { await downloadNichePDF(n,profile?.plan??'pro',currency) }
-                                catch(err){ console.error('[pdf]',err); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
-                                finally { setPdfLoading(false) }
-                              }}
-                              disabled={pdfLoading}
-                              title="Descargar PDF de este nicho"
+                              onClick={(e)=>{ e.stopPropagation(); saveFavorite(n) }}
+                              disabled={savedNiches.has(n.name)}
+                              title={savedNiches.has(n.name)?'Guardado en favoritos':'Guardar en favoritos'}
                               style={{
                                 display:'flex',alignItems:'center',gap:5,
-                                background:isAgency?'rgba(255,153,0,0.12)':'rgba(124,111,255,0.12)',
-                                border:`1px solid ${isAgency?'rgba(255,153,0,0.35)':'rgba(124,111,255,0.35)'}`,
-                                color:isAgency?'#ff9900':'var(--acc)',
+                                background:savedNiches.has(n.name)?'rgba(255,209,102,0.18)':'rgba(255,255,255,0.06)',
+                                border:`1px solid ${savedNiches.has(n.name)?'rgba(255,209,102,0.4)':'rgba(255,255,255,0.12)'}`,
+                                color:savedNiches.has(n.name)?'#ffd166':'var(--t2)',
                                 borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
-                                cursor:pdfLoading?'wait':'pointer',fontFamily:'var(--font-body)',
-                                opacity:pdfLoading?.6:1,flexShrink:0,
+                                cursor:savedNiches.has(n.name)?'default':'pointer',fontFamily:'var(--font-body)',
                               }}>
-                              {pdfLoading?'⏳':'⬇'} PDF
+                              {savedNiches.has(n.name)?'★ Guardado':'☆ Favorito'}
                             </button>
-                          )}
+                            {isPro&&(
+                              <button
+                                onClick={async(e)=>{
+                                  e.stopPropagation()
+                                  setPdfLoading(true)
+                                  try { await downloadNichePDF(n,profile?.plan??'pro',currency) }
+                                  catch(err){ console.error('[pdf]',err); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
+                                  finally { setPdfLoading(false) }
+                                }}
+                                disabled={pdfLoading}
+                                title="Descargar PDF de este nicho"
+                                style={{
+                                  display:'flex',alignItems:'center',gap:5,
+                                  background:isAgency?'rgba(255,153,0,0.12)':'rgba(124,111,255,0.12)',
+                                  border:`1px solid ${isAgency?'rgba(255,153,0,0.35)':'rgba(124,111,255,0.35)'}`,
+                                  color:isAgency?'#ff9900':'var(--acc)',
+                                  borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                  cursor:pdfLoading?'wait':'pointer',fontFamily:'var(--font-body)',
+                                  opacity:pdfLoading?.6:1,
+                                }}>
+                                {pdfLoading?'⏳':'⬇'} PDF
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
@@ -638,7 +714,7 @@ export default function Dashboard() {
       )}
 
       {/* PLANES */}
-      {tab==='plans'&&<PlansTab onUpgrade={handleUpgrade} currentPlan={profile?.plan??'free'}/>}
+      {tab==='plans'&&<PlansTab onUpgrade={handleUpgrade} onManageBilling={handleManageBilling} billingLoading={billingLoading} currentPlan={profile?.plan??'free'}/>}
 
       {/* MODAL — info básica + links */}
       {selected&&(
@@ -656,6 +732,11 @@ export default function Dashboard() {
                   <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',fontWeight:800,color:scoreColor(selected.opportunity_score??selected.profit_score??0)}}>{selected.opportunity_score??selected.profit_score??0}</div>
                   <div style={{fontSize:9,color:'var(--t3)'}}>Score IA</div>
                 </div>
+                <button onClick={()=>saveFavorite(selected)} disabled={savedNiches.has(selected.name)}
+                  title={savedNiches.has(selected.name)?'Guardado en favoritos':'Guardar en favoritos'}
+                  style={{background:savedNiches.has(selected.name)?'rgba(255,209,102,0.18)':'var(--c3)',border:savedNiches.has(selected.name)?'1px solid rgba(255,209,102,0.4)':'none',color:savedNiches.has(selected.name)?'#ffd166':'var(--t1)',width:32,height:32,borderRadius:'50%',cursor:savedNiches.has(selected.name)?'default':'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  {savedNiches.has(selected.name)?'★':'☆'}
+                </button>
                 <button onClick={()=>setSelected(null)} style={{background:'var(--c3)',border:'none',color:'var(--t1)',width:32,height:32,borderRadius:'50%',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
               </div>
             </div>

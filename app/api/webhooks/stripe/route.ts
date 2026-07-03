@@ -117,6 +117,47 @@ export async function POST(req: NextRequest) {
       console.log('[webhook] Pago fallido para:', inv.customer)
     }
 
+    // ── Suscripción actualizada (cambio de plan, reactivación tras
+    //    recuperar un pago fallido, cambios hechos desde el Customer
+    //    Portal) ────────────────────────────────────────────────
+    else if (event.type === 'customer.subscription.updated') {
+      const sub = event.data.object as Stripe.Subscription
+      const customerId = sub.customer as string
+
+      const { data } = await db
+        .from('profiles')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single()
+
+      if (!data?.id) {
+        console.warn('[webhook] subscription.updated: usuario no encontrado para customer', customerId)
+      } else if (sub.status === 'active' || sub.status === 'trialing') {
+        const priceId = sub.items.data[0]?.price?.id
+        const plan: 'pro' | 'agency' = priceId === process.env.STRIPE_PRICE_AGENCY_MONTHLY ? 'agency' : 'pro'
+        await db.from('profiles').update({ plan }).eq('id', data.id)
+        console.log(`[webhook] ✅ subscription.updated → plan "${plan}" para usuario ${data.id}`)
+      } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) {
+        await db.from('profiles').update({ plan: 'free' }).eq('id', data.id)
+        console.log(`[webhook] ✅ subscription.updated → plan "free" (status ${sub.status}) para usuario ${data.id}`)
+      }
+    }
+
+    // ── Pago recuperado tras un fallo previo (dunning exitoso) ──
+    else if (event.type === 'invoice.paid') {
+      const inv = event.data.object as Stripe.Invoice
+      const customerId = inv.customer as string
+      if (customerId) {
+        const { data } = await db.from('profiles').select('id, plan').eq('stripe_customer_id', customerId).single()
+        if (data?.id && data.plan === 'free') {
+          // Si el usuario había vuelto a 'free' por un fallo previo y ahora
+          // paga con éxito, la suscripción activa se restaura vía
+          // customer.subscription.updated (que llega junto a este evento).
+          console.log('[webhook] invoice.paid recibido para usuario', data.id, '— el plan se restaura vía subscription.updated')
+        }
+      }
+    }
+
   } catch (err) {
     console.error('[webhook] Error inesperado:', err)
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })

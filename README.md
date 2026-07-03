@@ -15,7 +15,7 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 
 ### 2. Configurar Supabase
 1. Crea un proyecto nuevo en supabase.com
-2. Ve a **SQL Editor** y ejecuta los dos archivos de la carpeta `supabase/migrations/` en orden
+2. Ve a **SQL Editor** y ejecuta los archivos de la carpeta `supabase/migrations/` en orden (001, 002, 003, 004). La migración 004 es especialmente importante: cierra una vulnerabilidad que permitía a cualquier usuario auto-ascender su propio plan a Agency sin pagar.
 3. Copia desde **Settings → API**: Project URL, anon key y service_role key
 
 ### 3. Configurar Stripe
@@ -57,11 +57,12 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 Una vez tengas tu URL de Vercel, actualiza la URL del webhook en Stripe:
 `https://tu-app.vercel.app/api/webhooks/stripe`
 
-Eventos a escuchar:
-- customer.subscription.created
+Eventos a escuchar (imprescindible añadir los 5, si falta alguno el plan del usuario puede quedar desincronizado):
+- checkout.session.completed
 - customer.subscription.updated
 - customer.subscription.deleted
 - invoice.payment_failed
+- invoice.paid
 
 ### 8. Configurar URL en Supabase
 En Supabase → **Authentication → URL Configuration**:

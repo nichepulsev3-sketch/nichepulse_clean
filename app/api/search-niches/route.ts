@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseAdmin, canSearch } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import { searchNiches } from '@/lib/ai'
 import { z } from 'zod'
 
@@ -23,33 +23,42 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error } = await db.auth.getUser(token)
     if (error || !user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // 3. Cargar perfil del usuario
-    const { data: profile } = await db.from('profiles').select('*').eq('id', user.id).single()
+    // 3. Cargar perfil del usuario (solo para conocer el plan a usar en la búsqueda)
+    const { data: profile } = await db.from('profiles').select('plan').eq('id', user.id).single()
     if (!profile) return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 })
 
-    // 4. Resetear contador diario si han pasado 24h
-    const hoursDiff = (Date.now() - new Date(profile.searches_reset_at).getTime()) / 3_600_000
-    let used = profile.searches_today
-    if (hoursDiff >= 24) {
-      used = 0
-      await db.from('profiles').update({ searches_today: 0, searches_reset_at: new Date().toISOString() }).eq('id', user.id)
+    // 4. Reservar cuota de forma atómica ANTES de gastar en IA.
+    //    increment_search_usage() resetea el contador diario si han pasado
+    //    24h, comprueba el límite del plan y solo incrementa si hay cuota
+    //    disponible — todo en una única transacción con bloqueo de fila,
+    //    para que dos requests simultáneas del mismo usuario no puedan
+    //    saltarse el límite (condición de carrera del check-then-act previo).
+    const { data: quota, error: quotaErr } = await db.rpc('increment_search_usage', { p_user_id: user.id })
+    if (quotaErr) {
+      console.error('[search-niches] quota rpc error', quotaErr)
+      return NextResponse.json({ error: 'Error interno al verificar tu cuota' }, { status: 500 })
     }
-
-    // 5. Verificar cuota
-    if (!canSearch(profile.plan, used)) {
+    if (!quota?.ok) {
       return NextResponse.json({ error: 'Límite de búsquedas alcanzado. Actualiza a Pro.' }, { status: 429 })
     }
 
-    // 6. Ejecutar búsqueda con IA + señales en vivo
-    const results = await searchNiches(query, filters, profile.plan, geo.toUpperCase())
+    // 5. Ejecutar búsqueda con IA + señales en vivo
+    let results
+    try {
+      results = await searchNiches(query, filters, profile.plan, geo.toUpperCase())
+    } catch (searchErr) {
+      // La cuota ya se gastó (RPC atómica) pero la búsqueda falló: devolvemos
+      // la búsqueda para no cobrarle al usuario un intento que no obtuvo resultado.
+      await db.rpc('refund_search_usage', { p_user_id: user.id }).then(
+        () => {}, () => {} // best-effort; si la función no existe aún, no bloquea la respuesta de error
+      )
+      throw searchErr
+    }
 
-    // 7. Guardar búsqueda e incrementar contador
-    await Promise.all([
-      db.from('niche_searches').insert({ user_id: user.id, query, filters, results }),
-      db.from('profiles').update({ searches_today: used + 1 }).eq('id', user.id),
-    ])
+    // 6. Guardar búsqueda en el historial (no bloqueante para la respuesta)
+    await db.from('niche_searches').insert({ user_id: user.id, query, filters, results })
 
-    return NextResponse.json({ results, searches_used: used + 1, plan: profile.plan })
+    return NextResponse.json({ results, searches_used: quota.used, plan: profile.plan })
 
   } catch (err: any) {
     console.error('[search-niches]', err)

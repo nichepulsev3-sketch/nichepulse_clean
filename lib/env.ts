@@ -33,10 +33,29 @@ function optional(name: string, fallback = ''): string {
   return process.env[name]?.trim() || fallback
 }
 
+// Next.js solo sustituye `process.env.NEXT_PUBLIC_X` en el bundle del
+// navegador cuando es un acceso ESTÁTICO y literal (análisis en build
+// time). `process.env[name]` con un string dinámico NO se sustituye —
+// en el navegador `process.env` no existe de verdad, así que esa lectura
+// devuelve `undefined` y el getter lanzaba una excepción en cada render
+// de cliente ("Application error: a client-side exception has ocurred").
+// Por eso las 3 variables NEXT_PUBLIC_ que SÍ se leen desde código de
+// cliente (getSupabaseBrowser, usado en dashboard/favorites/watchlist/
+// login...) usan aquí acceso literal en vez del helper genérico.
+function requiredPublic(name: string, value: string | undefined): string {
+  if (!value || value.trim() === '') {
+    throw new Error(
+      `[env] Falta la variable de entorno obligatoria "${name}". ` +
+      `Configúrala en Railway (o en .env.local en desarrollo) — la app no puede funcionar sin ella.`
+    )
+  }
+  return value.trim()
+}
+
 export const env = {
   // ── Supabase ──────────────────────────────────────────────────
-  get NEXT_PUBLIC_SUPABASE_URL()      { return required('NEXT_PUBLIC_SUPABASE_URL') },
-  get NEXT_PUBLIC_SUPABASE_ANON_KEY() { return required('NEXT_PUBLIC_SUPABASE_ANON_KEY') },
+  get NEXT_PUBLIC_SUPABASE_URL()      { return requiredPublic('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL) },
+  get NEXT_PUBLIC_SUPABASE_ANON_KEY() { return requiredPublic('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) },
   get SUPABASE_SERVICE_ROLE_KEY()     { return required('SUPABASE_SERVICE_ROLE_KEY') },
 
   // ── Stripe ────────────────────────────────────────────────────
@@ -59,5 +78,9 @@ export const env = {
   get RESEND_FROM()    { return optional('RESEND_FROM', 'NichePulse <onboarding@resend.dev>') },
 
   // ── App ───────────────────────────────────────────────────────
-  get NEXT_PUBLIC_APP_URL() { return optional('NEXT_PUBLIC_APP_URL', 'https://nichepulse.app') },
+  // También literal: aunque hoy solo se usa en código de servidor
+  // (layout/sitemap/robots/checkout/cron), es NEXT_PUBLIC_ por convención
+  // y podría acabar en un componente de cliente en el futuro — más seguro
+  // dejarlo ya como acceso estático.
+  get NEXT_PUBLIC_APP_URL() { return process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://nichepulse.app' },
 }

@@ -56,6 +56,7 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 | `RESEND_FROM` | Ej: `NichePulse <alerts@tudominio.com>` (opcional, requiere dominio verificado en Resend) |
 | `NEXT_PUBLIC_SENTRY_DSN` | sentry.io → tu proyecto → Client Keys (DSN) (opcional — sin esto, la app funciona igual, solo sin reporte de errores) |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Solo si quieres subir source maps y release tracking en el build (opcional) |
+| `ADMIN_EMAILS` | Emails con acceso al panel `/admin/motor-propio`, separados por coma (opcional — sin esto, cae por defecto a `solsona17@gmail.com`) |
 
 3. Haz clic en **Deploy**
 
@@ -88,6 +89,8 @@ Sin `RESEND_API_KEY` configurada, las alertas se siguen generando y viendo en la
 
 Ver `MOTOR_PROPIO_PROPUESTA.md` para el plan completo. El primer paso ya implementado: `/api/cron/outcome-feedback` revisa a diario el watchlist de usuarios Pro/Agency y, a los 30/60/90 días de que un usuario vigile un nicho, le envía un email preguntando si lo probó y qué tal le fue — el dato que hoy no existe y que algún día permitirá entrenar un modelo propio en vez de depender solo de la IA. Configúralo igual que el otro cron (mismo `CRON_SECRET`, otra URL): `POST` diario a `/api/cron/outcome-feedback`. Requiere la migración 010 ejecutada.
 
+**Panel de monitoreo**: `/admin/motor-propio` — vigila cuántos resultados van llegando (totales, desglose éxito/fracaso/en curso, tasa de respuesta por hito 30/60/90) sin entrar a Supabase a mano. Solo accesible para los emails en `ADMIN_EMAILS` (por defecto, `solsona17@gmail.com`).
+
 ---
 
 ## Estructura del proyecto
@@ -102,10 +105,12 @@ nichepulse/
 │   │   ├── cron/opportunity-feed/ → Job diario: analiza y genera alertas
 │   │   ├── opportunity-alerts/→ El usuario lista/marca leídas sus alertas
 │   │   ├── health/            → Health check (Supabase, cron, cache, memoria...)
+│   │   ├── admin/motor-propio-stats/ → Estadísticas del panel (solo ADMIN_EMAILS)
 │   │   └── webhooks/stripe/  → Eventos de suscripción (idempotentes)
 │   ├── auth/login/           → Login / Registro
 │   ├── dashboard/            → App principal
 │   ├── pricing/              → Planes y precios
+│   ├── admin/motor-propio/   → Panel: monitoreo de niche_outcomes (solo ADMIN_EMAILS)
 │   ├── global-error.tsx      → Captura errores de React → Sentry
 │   └── ref/[code]/           → Links de afiliados
 ├── components/

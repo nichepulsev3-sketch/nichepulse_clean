@@ -38,8 +38,12 @@ setInterval(() => {
  * ve un parpadeo de la página antes de la redirección). '/feedback' se
  * añadió con el Motor propio (Fase 1, MOTOR_PROPIO_PROPUESTA.md): es
  * donde el usuario reporta el resultado real de un nicho, requiere
- * sesión igual que el resto de páginas con datos personales. */
-const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist', '/feedback']
+ * sesión igual que el resto de páginas con datos personales. '/admin' se
+ * añadió con el panel de monitoreo del Motor propio: requiere sesión Y
+ * que el email esté en env.ADMIN_EMAILS (comprobado abajo) — defensa en
+ * profundidad, la API /api/admin/* vuelve a comprobarlo por su cuenta. */
+const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist', '/feedback', '/admin']
+const ADMIN_ROUTES     = ['/admin']
 const AUTH_ROUTES      = ['/auth/login', '/auth/register']
 
 export async function middleware(req: NextRequest) {
@@ -100,6 +104,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  /* ── /admin: además de sesión, exigir email en ADMIN_EMAILS ───── */
+  const needsAdmin = ADMIN_ROUTES.some(r => pathname.startsWith(r))
+  if (needsAdmin && user) {
+    const isAdmin = !!user.email && env.ADMIN_EMAILS.includes(user.email.toLowerCase())
+    if (!isAdmin) {
+      const dashUrl = req.nextUrl.clone()
+      dashUrl.pathname = '/dashboard'
+      return NextResponse.redirect(dashUrl)
+    }
+  }
+
   /* ── Redirigir si ya autenticado y va al login ────────────── */
   if (isAuthPage && user) {
     const dashUrl = req.nextUrl.clone()
@@ -124,6 +139,7 @@ export const config = {
     '/favorites/:path*',
     '/watchlist/:path*',
     '/feedback/:path*',
+    '/admin/:path*',
     '/auth/:path*',
     '/api/:path*',
   ],

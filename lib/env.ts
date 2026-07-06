@@ -91,4 +91,15 @@ export const env = {
   // sentry.*.config.ts simplemente no llama a Sentry.init() y la app
   // sigue funcionando exactamente igual que hoy.
   get NEXT_PUBLIC_SENTRY_DSN() { return process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() || '' },
+
+  // ── Admin (panel de Motor propio, ver MOTOR_PROPIO_PROPUESTA.md) ──
+  // Lista de emails con acceso a /admin/*, separados por coma. Opcional:
+  // si no se configura en Railway, cae por defecto al email del CEO para
+  // que el panel funcione sin pasos extra de configuración. Añadir más
+  // administradores en el futuro es solo cambiar esta variable, sin tocar
+  // código ni desplegar de nuevo.
+  get ADMIN_EMAILS(): string[] {
+    const raw = process.env.ADMIN_EMAILS?.trim() || 'solsona17@gmail.com'
+    return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+  },
 }

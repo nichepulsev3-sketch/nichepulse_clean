@@ -9,8 +9,9 @@
 - `lib/email.ts` → `outcomeFeedbackEmail()`.
 - `app/feedback/[watchlistId]/page.tsx` + `app/api/niche-outcomes/route.ts`: el usuario reporta si probó el nicho y qué tal le fue.
 - `middleware.ts`: `/feedback` protegido igual que el resto de páginas con datos personales.
+- `/admin/motor-propio` (+ `/api/admin/motor-propio-stats`): panel de solo lectura para vigilar el volumen de datos sin entrar a Supabase a mano — totales, desglose éxito/fracaso/en curso/no probado, tasa de respuesta por hito 30/60/90 y últimas respuestas. Protegido en tres capas: sesión requerida (middleware), email en `ADMIN_EMAILS` (middleware, redirige a `/dashboard` si no coincide) y de nuevo en la propia API (403 si no coincide). Por defecto `ADMIN_EMAILS` es `solsona17@gmail.com` — no requiere configuración extra en Railway para funcionar ya.
 
-Pendiente de ti: ejecutar la migración 010 en Supabase y configurar el nuevo cron (mismo `CRON_SECRET`, ver README punto 10).
+Pendiente de ti: ejecutar la migración 010 en Supabase y configurar el nuevo cron (mismo `CRON_SECRET`, ver README punto 10). El panel ya funciona en cuanto despliegues, aunque hasta que no haya respuestas reales se verá todo en cero.
 
 ## 0. El problema real, dicho sin rodeos
 

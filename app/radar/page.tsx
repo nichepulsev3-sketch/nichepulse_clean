@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getSupabaseBrowser } from '@/lib/supabase'
 import { scoreColor, scoreGradient } from '@/lib/types'
 import SkeletonCard from '@/components/SkeletonCard'
+import SubPageNav from '@/components/SubPageNav'
 
 const CATEGORIES = [
   { id:'emerging',   icon:'🌱', label:'Emergentes',      color:'var(--teal)',   desc:'Nichos con crecimiento acelerado en las últimas semanas.' },
@@ -89,19 +90,14 @@ export default function RadarPage() {
   return (
     <div style={{ minHeight:'100dvh', background:'var(--bg-base)', color:'var(--txt-1)', fontFamily:'var(--font-body)' }}>
       {/* Nav */}
-      <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderBottom:'1px solid var(--brd-1)', background:'var(--bg-float)', backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:100 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <Link href="/dashboard" style={{ color:'var(--txt-3)', textDecoration:'none', fontSize:13 }}>← Dashboard</Link>
-          <span style={{ color:'var(--brd-2)' }}>|</span>
-          <span style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'1rem' }}>📡 Radar de Nichos</span>
-        </div>
+      <SubPageNav icon="📡" title="Radar de Nichos" right={
         <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'var(--txt-3)' }}>
           <span style={{ width:8, height:8, borderRadius:'50%', background: isRealCategory ? 'var(--teal)' : 'var(--txt-3)', display:'inline-block', boxShadow: isRealCategory ? '0 0 6px var(--teal)' : 'none' }}/>
           {isRealCategory
             ? (fetchedAt ? `En vivo · actualizado ${new Date(fetchedAt).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}` : 'Cargando señales en vivo...')
             : 'Muestra ilustrativa'}
         </div>
-      </nav>
+      } />
 
       <div style={{ maxWidth:1100, margin:'0 auto', padding:'2rem 1.5rem' }}>
         {/* Header */}

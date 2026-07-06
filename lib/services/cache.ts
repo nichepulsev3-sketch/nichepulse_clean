@@ -47,7 +47,12 @@ class TTLCache {
   }
 
   invalidatePrefix(prefix: string): void {
-    for (const k of this.store.keys()) {
+    // Array.from() en vez de for...of directo sobre el iterador del Map:
+    // el tsconfig del proyecto no define "target" (TS usa ES3 por defecto),
+    // y for...of sobre un MapIterator requiere --downlevelIteration o
+    // target ES2015+. Array.from() sí funciona en cualquier target porque
+    // es una llamada de método normal, no una construcción de iteración.
+    for (const k of Array.from(this.store.keys())) {
       if (k.startsWith(prefix)) this.store.delete(k)
     }
   }
@@ -56,7 +61,7 @@ class TTLCache {
   sweep(): number {
     const now = Date.now()
     let removed = 0
-    for (const [k, v] of this.store.entries()) {
+    for (const [k, v] of Array.from(this.store.entries())) {
       if (now > v.expiresAt) { this.store.delete(k); removed++ }
     }
     return removed

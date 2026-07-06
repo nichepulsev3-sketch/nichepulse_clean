@@ -35,8 +35,11 @@ setInterval(() => {
  * '/watchlist' porque sí es una página real que necesita protección
  * a nivel de middleware, no solo el check client-side de la propia
  * página (defensa en profundidad: sin esto, un usuario no autenticado
- * ve un parpadeo de la página antes de la redirección). */
-const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist']
+ * ve un parpadeo de la página antes de la redirección). '/feedback' se
+ * añadió con el Motor propio (Fase 1, MOTOR_PROPIO_PROPUESTA.md): es
+ * donde el usuario reporta el resultado real de un nicho, requiere
+ * sesión igual que el resto de páginas con datos personales. */
+const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist', '/feedback']
 const AUTH_ROUTES      = ['/auth/login', '/auth/register']
 
 export async function middleware(req: NextRequest) {
@@ -120,6 +123,7 @@ export const config = {
     '/radar/:path*',
     '/favorites/:path*',
     '/watchlist/:path*',
+    '/feedback/:path*',
     '/auth/:path*',
     '/api/:path*',
   ],

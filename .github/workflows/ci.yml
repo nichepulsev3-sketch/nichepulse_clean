@@ -21,10 +21,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # Sin cache: 'npm' a propósito — todavía no existe un
+          # package-lock.json commiteado (ver nota de abajo), y esa opción
+          # de actions/setup-node requiere un lockfile para calcular la
+          # clave de caché o falla el step.
 
+      # No usamos `npm ci` porque ese comando exige un package-lock.json
+      # ya commiteado (falla si no existe) — este proyecto todavía no
+      # tiene uno. `npm install` funciona sin él y genera/actualiza el
+      # lockfile. Recomendado para v4.0: commitear package-lock.json y
+      # cambiar esto a `npm ci` para builds 100% reproducibles.
       - name: Instalar dependencias
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Comprobar tipos (TypeScript)
         run: npx tsc --noEmit

@@ -83,4 +83,12 @@ export const env = {
   // y podría acabar en un componente de cliente en el futuro — más seguro
   // dejarlo ya como acceso estático.
   get NEXT_PUBLIC_APP_URL() { return process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://nichepulse.app' },
+
+  // ── Observabilidad (Fase 4) ─────────────────────────────────────
+  // El DSN de Sentry NO es un secreto (está diseñado para ir en el
+  // bundle del navegador — por eso es NEXT_PUBLIC_ y usa acceso estático,
+  // igual que las variables de Supabase de arriba). Opcional: sin él,
+  // sentry.*.config.ts simplemente no llama a Sentry.init() y la app
+  // sigue funcionando exactamente igual que hoy.
+  get NEXT_PUBLIC_SENTRY_DSN() { return process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() || '' },
 }

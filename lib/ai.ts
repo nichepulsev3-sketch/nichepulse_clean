@@ -9,6 +9,7 @@ import { jsonrepair } from 'jsonrepair'
 import { getTrends, buildTrendContext } from './trends'
 import { env } from './env'
 import { createLogger } from './logger'
+import { cache, CACHE_TTL } from './services/cache'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
 
@@ -430,6 +431,13 @@ async function raceAI(promises: Promise<NicheResult[]>[]): Promise<NicheResult[]
   })
 }
 
+// Clave de caché determinista: mismos query+filtros+plan+geo → misma
+// clave, sin importar el orden en que llegaron las keys de `filters`.
+function searchCacheKey(query: string, filters: Record<string, boolean>, plan: Plan, geo: string): string {
+  const activeFilters = Object.entries(filters).filter(([, v]) => v).map(([k]) => k).sort().join(',')
+  return `ai-search:${plan}:${geo.toUpperCase()}:${query.trim().toLowerCase()}:${activeFilters}`
+}
+
 /* ── Función principal ──────────────────────────────────────────── */
 export async function searchNiches(
   query: string, filters: Record<string,boolean>, plan: Plan, geo = 'US',
@@ -442,6 +450,23 @@ export async function searchNiches(
   // cortaba la respuesta a mitad de generación (JSON truncado). Con 4
   // nichos cada uno recibe más presupuesto real y termina completo.
   const maxResults = plan === 'free' ? 3 : 4
+
+  // Caché de resultados de IA (Fase 6): si dos usuarios (o el mismo dos
+  // veces) piden exactamente la misma consulta+filtros+plan+país dentro
+  // del TTL, no volvemos a gastar una llamada real a Claude/OpenAI.
+  // Se DESACTIVA a propósito cuando hay `history` (contexto de búsquedas
+  // previas del cliente): ese contexto personaliza el texto que genera la
+  // IA, así que sería incorrecto servirle a otro usuario un resultado
+  // cacheado que en realidad se generó pensando en el historial de otro.
+  const cacheable = !(opts?.history?.length)
+  const cacheKey = searchCacheKey(query, filters, plan, geo)
+  if (cacheable) {
+    const cached = cache.get<NicheResult[]>(cacheKey)
+    if (cached) {
+      log.info('Resultado servido desde caché (sin llamar a la IA)', { plan, geo, query })
+      return cached
+    }
+  }
 
   // Señales en vivo (timeout 1.5s máximo)
   let trendContext = ''
@@ -478,12 +503,16 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
 
   try {
     const results = await raceAI(promises)
-    return results.slice(0, maxResults)
+    const sliced = results.slice(0, maxResults)
+    if (cacheable) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
+    return sliced
   } catch {
     log.warn('Motor Multi-IA: reintentando solo con Claude')
     try {
       const retry = await callClaude(cfg.claude, system, userPrompt, cfg.tokens)
-      return retry.slice(0, maxResults)
+      const sliced = retry.slice(0, maxResults)
+      if (cacheable) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
+      return sliced
     } catch (err: any) {
       // Log completo (no solo el mensaje reducido al usuario) para que el
       // error real quede en los logs de Railway/Vercel y se pueda diagnosticar

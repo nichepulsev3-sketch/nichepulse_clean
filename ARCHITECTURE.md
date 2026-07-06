@@ -9,6 +9,7 @@ En vez de arriesgar eso, la arquitectura objetivo se define aquí y se aplica de
 ## Capas
 
 - **`app/`** — rutas de Next.js App Router (páginas + API routes). Deben ser finas: reciben la petición, llaman a un service, devuelven la respuesta. Hoy varias rutas (`cron/opportunity-feed`, `webhooks/stripe`) tienen lógica de negocio inline — candidatas a migrar a `lib/services/` cuando se toquen de nuevo.
+  - Naming del feed de oportunidades (antes ambiguo): `app/api/cron/opportunity-feed` = job diario que analiza y genera alertas; `app/api/opportunity-alerts` = endpoint que el usuario consulta desde el dashboard (lista/marca leídas). No son duplicados — son las dos puntas de la misma feature con nombres que ahora describen cada una.
 - **`components/`** — componentes React de presentación. Ya existe y ya sigue el patrón (`SubPageNav`, `EmptyState`, `ListItem`, etc. extraídos en un turno anterior).
 - **`lib/services/`** (nueva) — lógica de negocio pura, sin acceso directo a Supabase/Stripe. Ej.: `logger.ts`, `featureFlags.ts`.
 - **`lib/repositories/`** (nueva, uso incremental) — acceso a datos encapsulado (queries Supabase) detrás de funciones con nombre de dominio, para que un service no sepa que la base de datos es Postgres. Se introduce para dominios nuevos o cuando se refactoriza uno existente; no se ha migrado `search-niches`/`favorites`/`watchlist` todavía porque ya funcionan y migrarlos no aporta valor inmediato al usuario, solo riesgo.

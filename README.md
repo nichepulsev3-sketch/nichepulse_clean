@@ -15,7 +15,7 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 
 ### 2. Configurar Supabase
 1. Crea un proyecto nuevo en supabase.com
-2. Ve a **SQL Editor** y ejecuta los archivos de la carpeta `supabase/migrations/` en orden (001 a 009). La migración 004 es especialmente importante: cierra una vulnerabilidad que permitía a cualquier usuario auto-ascender su propio plan a Agency sin pagar. La 005 crea `watchlist`/`opportunity_alerts` (Feed de oportunidades). La 006 añade índices de performance. La 007 crea `stripe_webhook_events` (evita procesar dos veces un webhook reenviado por Stripe). La 008 crea `cron_logs` (historial y locking del cron, evita que dos ejecuciones se solapen). La 009 crea `feature_flags` (activar/desactivar funcionalidades sin desplegar).
+2. Ve a **SQL Editor** y ejecuta los archivos de la carpeta `supabase/migrations/` en orden (001 a 010). La migración 004 es especialmente importante: cierra una vulnerabilidad que permitía a cualquier usuario auto-ascender su propio plan a Agency sin pagar. La 005 crea `watchlist`/`opportunity_alerts` (Feed de oportunidades). La 006 añade índices de performance. La 007 crea `stripe_webhook_events` (evita procesar dos veces un webhook reenviado por Stripe). La 008 crea `cron_logs` (historial y locking del cron, evita que dos ejecuciones se solapen). La 009 crea `feature_flags` (activar/desactivar funcionalidades sin desplegar). La 010 crea `niche_outcomes` (resultados reales para el Motor propio, ver `MOTOR_PROPIO_PROPUESTA.md`).
 3. Copia desde **Settings → API**: Project URL, anon key y service_role key
 
 ### 3. Configurar Stripe
@@ -54,6 +54,8 @@ Buscador de nichos de dropshipping con IA · Google Trends · TikTok · Amazon �
 | `CRON_SECRET` | Inventa una cadena larga aleatoria — protege el endpoint del Feed de oportunidades |
 | `RESEND_API_KEY` | resend.com → API Keys (opcional — sin esto, las alertas de watchlist no envían email, pero el resto de la app funciona igual) |
 | `RESEND_FROM` | Ej: `NichePulse <alerts@tudominio.com>` (opcional, requiere dominio verificado en Resend) |
+| `NEXT_PUBLIC_SENTRY_DSN` | sentry.io → tu proyecto → Client Keys (DSN) (opcional — sin esto, la app funciona igual, solo sin reporte de errores) |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Solo si quieres subir source maps y release tracking en el build (opcional) |
 
 3. Haz clic en **Deploy**
 
@@ -82,6 +84,10 @@ Si despliegas en Railway, puedes usar en su lugar un **Cron Schedule** de Railwa
 
 Sin `RESEND_API_KEY` configurada, las alertas se siguen generando y viendo en la campana 🔔 del dashboard — solo no se envía el email a los nichos en watchlist.
 
+### 10. Motor propio — captura de resultados reales (Fase 1)
+
+Ver `MOTOR_PROPIO_PROPUESTA.md` para el plan completo. El primer paso ya implementado: `/api/cron/outcome-feedback` revisa a diario el watchlist de usuarios Pro/Agency y, a los 30/60/90 días de que un usuario vigile un nicho, le envía un email preguntando si lo probó y qué tal le fue — el dato que hoy no existe y que algún día permitirá entrenar un modelo propio en vez de depender solo de la IA. Configúralo igual que el otro cron (mismo `CRON_SECRET`, otra URL): `POST` diario a `/api/cron/outcome-feedback`. Requiere la migración 010 ejecutada.
+
 ---
 
 ## Estructura del proyecto
@@ -93,25 +99,31 @@ nichepulse/
 │   │   ├── search-niches/    → Búsqueda con IA
 │   │   ├── trends/           → Señales Google/TikTok/Amazon
 │   │   ├── create-checkout/  → Pagos Stripe
-│   │   ├── cron/opportunity-feed/ → IA proactiva (con locking + cron_logs)
+│   │   ├── cron/opportunity-feed/ → Job diario: analiza y genera alertas
+│   │   ├── opportunity-alerts/→ El usuario lista/marca leídas sus alertas
+│   │   ├── health/            → Health check (Supabase, cron, cache, memoria...)
 │   │   └── webhooks/stripe/  → Eventos de suscripción (idempotentes)
 │   ├── auth/login/           → Login / Registro
 │   ├── dashboard/            → App principal
 │   ├── pricing/              → Planes y precios
+│   ├── global-error.tsx      → Captura errores de React → Sentry
 │   └── ref/[code]/           → Links de afiliados
 ├── components/
 │   └── TrendsPanel.tsx       → Panel de señales en vivo
 ├── lib/
-│   ├── ai.ts                 → Motor Multi-IA (Claude + OpenAI)
+│   ├── ai.ts                 → Motor Multi-IA (Claude + OpenAI), con caché de resultados
 │   ├── trends.ts             → Google + TikTok + Amazon
 │   ├── stripe.ts             → Pagos
 │   ├── supabase.ts           → Base de datos
 │   ├── env.ts                → Validación centralizada de variables de entorno
-│   ├── logger.ts             → Logging estructurado (JSON, sin console.log sueltos)
+│   ├── logger.ts             → Logging estructurado (JSON) + reporte a Sentry
+│   ├── queue/                → Cola de jobs (scaffold, sin Redis todavía — ver Fase 7)
 │   └── services/
+│       ├── cache.ts          → Caché en memoria con TTL (resultados IA, etc.)
 │       └── featureFlags.ts   → Activar/desactivar funcionalidades sin desplegar
-├── tests/                    → Vitest — lógica pura (parser JSON, límites de plan)
+├── tests/                    → Vitest (unit) + tests/e2e (Playwright)
 ├── .github/workflows/ci.yml  → Typecheck + lint + tests en cada PR
+├── sentry.*.config.ts, instrumentation.ts → Sentry (opcional, activa con NEXT_PUBLIC_SENTRY_DSN)
 ├── ARCHITECTURE.md           → Convenciones de capas y estrategia de migración
 └── supabase/migrations/      → SQL para crear las tablas (001 a 009)
 ```
@@ -120,10 +132,12 @@ Ver `ARCHITECTURE.md` para el detalle de por qué la estructura de carpetas se m
 
 ## Calidad y CI
 
-- `npm run test` — corre los tests de Vitest (lógica pura: parser JSON de la IA, límites de plan). No cubren el 80% del proyecto todavía; cubren las piezas que más incidentes reales causaron.
-- `.github/workflows/ci.yml` corre typecheck + lint + tests en cada push/PR a `main`. No despliega nada — Railway sigue desplegando de forma independiente.
+- `npm run test` — Vitest (lógica pura: parser JSON de la IA, límites de plan, caché, cola de jobs). No cubre el 80% del proyecto; cubre las piezas que más incidentes reales causaron o que son puramente lógicas.
+- `npm run test:e2e` — Playwright, recorridos que no requieren login real (landing, login, redirección de rutas protegidas, health check). Requiere `npx playwright install` una vez y (opcional) `E2E_BASE_URL` apuntando a un entorno real. No está en el workflow de CI todavía — los recorridos con login/watchlist/facturación de verdad necesitan un usuario y proyecto Supabase de test dedicados.
+- `.github/workflows/ci.yml` corre typecheck + lint + tests en cada push/PR a `main`. No despliega nada — Railway sigue desplegando de forma independiente con su propio git-push-to-deploy. **Pendiente**: no existe todavía `package-lock.json` commiteado, así que el workflow usa `npm install` en vez de `npm ci` — para builds 100% reproducibles, genera el lockfile localmente (`npm install`) y commítealo.
 - Variables de entorno: centralizadas en `lib/env.ts`. Si falta una obligatoria, el error dice exactamente cuál falta en vez de un crash genérico.
-- Logs: `lib/logger.ts` — todo log de servidor es JSON estructurado (`{time, level, scope, msg, ...}`), filtrable en Railway por campo en vez de por texto libre.
+- Logs: `lib/logger.ts` — todo log de servidor es JSON estructurado (`{time, level, scope, msg, ...}`) y cada `.error()` se reporta también a Sentry si `NEXT_PUBLIC_SENTRY_DSN` está configurado.
+- `/api/health` — usado como healthcheck de Railway (`railway.json`). Devuelve 503 si Supabase no responde o falta una variable crítica; 200 en cualquier otro caso (un cron con retraso se marca "degraded" pero no tumba el healthcheck).
 
 ---
 

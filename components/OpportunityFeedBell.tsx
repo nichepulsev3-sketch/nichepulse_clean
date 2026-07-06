@@ -28,7 +28,7 @@ export default function OpportunityFeedBell() {
       const supabase = getSupabaseBrowser()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-      const res = await fetch('/api/opportunity-feed', { headers: { Authorization: `Bearer ${session.access_token}` } })
+      const res = await fetch('/api/opportunity-alerts', { headers: { Authorization: `Bearer ${session.access_token}` } })
       const json = await res.json()
       if (res.ok) { setAlerts(json.alerts ?? []); setUnread(json.unread ?? 0) }
     } catch {}
@@ -42,7 +42,7 @@ export default function OpportunityFeedBell() {
       const supabase = getSupabaseBrowser()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-      await fetch('/api/opportunity-feed', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({}) })
+      await fetch('/api/opportunity-alerts', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({}) })
       setAlerts(a => a.map(x => ({ ...x, read: true }))); setUnread(0)
     } catch {}
   }

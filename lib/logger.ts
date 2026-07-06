@@ -14,7 +14,14 @@
  * hoy se pasa a mano en los sitios que ya identifican una operación por
  * IDs propios (userId, event.id de Stripe, query de búsqueda, etc.) — es
  * un primer paso realista, no tracing distribuido completo.
+ *
+ * Fase 4 (Sentry): cada `.error()` se reporta también a Sentry, no solo
+ * a la consola/Railway — "no dejar console.error sin registrar". El
+ * import de @sentry/nextjs es seguro incluso sin DSN configurado: el SDK
+ * no hace nada si `Sentry.init()` nunca se llamó (ver sentry.*.config.ts),
+ * así que este archivo funciona igual antes y después de que exista el DSN.
  */
+import * as Sentry from '@sentry/nextjs'
 
 type Level = 'debug' | 'info' | 'warn' | 'error'
 
@@ -35,6 +42,14 @@ function emit(level: Level, scope: string, msg: string, meta?: LogMeta) {
   if (level === 'error') console.error(serialized)
   else if (level === 'warn') console.warn(serialized)
   else console.log(serialized)
+
+  if (level === 'error') {
+    try {
+      Sentry.captureMessage(`[${scope}] ${msg}`, { level: 'error', extra: meta })
+    } catch {
+      // Nunca dejamos que un fallo reportando a Sentry rompa el log real.
+    }
+  }
 }
 
 /**

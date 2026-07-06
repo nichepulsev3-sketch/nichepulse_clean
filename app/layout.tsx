@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import PWABanner from '@/components/PWABanner'
 import CommandPalette from '@/components/CommandPalette'
+import { env } from '@/lib/env'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -19,7 +20,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nichepulse.app'),
+  metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
   title:       'NichepulseV.3 — Motor Multi-IA de Dropshipping',
   description: 'El sistema más avanzado de análisis de nichos dropshipping. Motor Multi-IA, Opportunity Score, Radar de Nichos y más.',
   manifest:    '/manifest.json',

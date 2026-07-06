@@ -5,9 +5,11 @@
  * variables de entorno. Si no están configuradas, no falla el resto del
  * flujo: registra un warning y sigue (best-effort, nunca bloqueante).
  */
+import { env } from './env'
+
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY?.trim()
-  const from   = process.env.RESEND_FROM?.trim() || 'NichePulse <onboarding@resend.dev>'
+  const apiKey = env.RESEND_API_KEY
+  const from   = env.RESEND_FROM
   if (!apiKey) {
     console.warn('[email] RESEND_API_KEY no configurada — email no enviado a', to)
     return false

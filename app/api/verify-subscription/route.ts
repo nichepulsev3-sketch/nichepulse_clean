@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
+import { env } from '@/lib/env'
 
 export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
   const priceId = sub.items.data[0].price.id
 
   let plan: 'pro' | 'agency' = 'pro'
-  if (priceId === process.env.STRIPE_PRICE_AGENCY_MONTHLY) {
+  if (priceId === env.STRIPE_PRICE_AGENCY_MONTHLY) {
     plan = 'agency'
   }
 

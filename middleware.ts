@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { env } from './lib/env'
 
 /* ── Rate Limiting en memoria (para producción usar Upstash Redis) ── */
 const rateStore = new Map<string, { count: number; resetAt: number }>()
@@ -76,8 +77,8 @@ export async function middleware(req: NextRequest) {
   if (!needsAuth && !isAuthPage) return res
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll:  () => req.cookies.getAll(),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { env } from '@/lib/env'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -9,13 +10,31 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+    event = stripe.webhooks.constructEvent(body, sig, env.STRIPE_WEBHOOK_SECRET)
   } catch (err) {
     console.error('[webhook] Firma inválida:', err)
     return NextResponse.json({ error: 'Firma inválida' }, { status: 400 })
   }
 
   const db = getSupabaseAdmin()
+
+  // ── Idempotencia ──────────────────────────────────────────────
+  // Stripe puede reenviar el mismo evento (reintentos, at-least-once
+  // delivery). Registramos el event.id antes de procesar; si ya existe,
+  // es un reenvío y no lo volvemos a aplicar. Si la tabla todavía no
+  // existe (migración 007 no ejecutada), no bloqueamos el pago real:
+  // solo perdemos la protección de idempotencia para ese evento.
+  const { error: dedupeError } = await db
+    .from('stripe_webhook_events')
+    .insert({ event_id: event.id, event_type: event.type })
+
+  if (dedupeError) {
+    if (dedupeError.code === '23505') {
+      console.log(`[webhook] Evento ${event.id} ya procesado antes (reintento de Stripe), ignorando`)
+      return NextResponse.json({ received: true, duplicate: true })
+    }
+    console.error('[webhook] No se pudo registrar idempotencia (¿falta la migración 007?):', dedupeError.message)
+  }
 
   try {
     // ── Pago completado ────────────────────────────────────────
@@ -134,7 +153,7 @@ export async function POST(req: NextRequest) {
         console.warn('[webhook] subscription.updated: usuario no encontrado para customer', customerId)
       } else if (sub.status === 'active' || sub.status === 'trialing') {
         const priceId = sub.items.data[0]?.price?.id
-        const plan: 'pro' | 'agency' = priceId === process.env.STRIPE_PRICE_AGENCY_MONTHLY ? 'agency' : 'pro'
+        const plan: 'pro' | 'agency' = priceId === env.STRIPE_PRICE_AGENCY_MONTHLY ? 'agency' : 'pro'
         await db.from('profiles').update({ plan }).eq('id', data.id)
         console.log(`[webhook] ✅ subscription.updated → plan "${plan}" para usuario ${data.id}`)
       } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) {

@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next'
+import { env } from '@/lib/env'
 
 export default function robots(): MetadataRoute.Robots {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://nichepulse.app'
+  const base = env.NEXT_PUBLIC_APP_URL
   return {
     rules: [
       {

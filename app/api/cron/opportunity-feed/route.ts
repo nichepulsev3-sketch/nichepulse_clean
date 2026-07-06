@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { searchNiches } from '@/lib/ai'
 import { sendEmail, opportunityAlertEmail } from '@/lib/email'
+import { env } from '@/lib/env'
 import type { Plan } from '@/lib/types'
 
 /**
@@ -31,13 +32,13 @@ function buildMessage(nicheName: string, oldScore: number, newScore: number, old
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
+  const secret = env.CRON_SECRET
   const auth   = req.headers.get('authorization')?.replace('Bearer ', '')
   if (!secret) return NextResponse.json({ error: 'CRON_SECRET no configurado en el servidor' }, { status: 500 })
   if (auth !== secret) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const db = getSupabaseAdmin()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nichepulse.app'
+  const appUrl = env.NEXT_PUBLIC_APP_URL
   let processed = 0, alertsCreated = 0, emailsSent = 0
   const errors: string[] = []
 

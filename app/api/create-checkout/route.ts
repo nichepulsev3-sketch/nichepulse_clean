@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { stripe, PLANS } from '@/lib/stripe'
+import { env } from '@/lib/env'
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     const planConfig = PLANS[plan as keyof typeof PLANS]
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const appUrl = env.NEXT_PUBLIC_APP_URL
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,

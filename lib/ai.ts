@@ -7,12 +7,13 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
 import { jsonrepair } from 'jsonrepair'
 import { getTrends, buildTrendContext } from './trends'
+import { env } from './env'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
 
-const anthropic    = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(), maxRetries: 0 })
-const openaiClient = process.env.OPENAI_API_KEY?.trim()
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY.trim(), maxRetries: 0 })
+const anthropic    = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 0 })
+const openaiClient = env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0 })
   : null
 
 /* ── Configuración de modelos por plan ───────────────────────────

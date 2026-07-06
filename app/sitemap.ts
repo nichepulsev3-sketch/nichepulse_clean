@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next'
+import { env } from '@/lib/env'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://nichepulse.app'
+  const base = env.NEXT_PUBLIC_APP_URL
   const now = new Date()
   // Solo páginas públicas indexables — el resto (dashboard, favorites,
   // watchlist, onboarding, auth) son privadas y ya están en robots.ts

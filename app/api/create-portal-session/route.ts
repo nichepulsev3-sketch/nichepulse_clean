@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
+import { env } from '@/lib/env'
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No tienes ninguna suscripción activa todavía.' }, { status: 400 })
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const appUrl = env.NEXT_PUBLIC_APP_URL
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${appUrl}/dashboard`,

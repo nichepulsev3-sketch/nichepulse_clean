@@ -79,7 +79,12 @@ export async function POST(req: NextRequest) {
     // actual de 40 búsquedas × 4 nichos). Los updates de watchlist se
     // lanzan en paralelo con Promise.all en vez de awaits secuenciales.
     const alertRows: any[] = []
-    const watchlistUpdates: Promise<any>[] = []
+    // PromiseLike, no Promise: el query builder de supabase-js es "thenable"
+    // (tiene .then) pero no implementa toda la interfaz de Promise
+    // (catch/finally/Symbol.toStringTag), así que TypeScript lo rechaza si
+    // se tipa como Promise<any>[]. PromiseLike es el tipo correcto y
+    // Promise.all lo acepta igual.
+    const watchlistUpdates: PromiseLike<any>[] = []
     const emailJobs: Promise<boolean>[] = []
 
     for (const target of targets) {

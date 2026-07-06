@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('api/create-portal-session')
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
-    console.error('[create-portal-session]', err)
+    log.error('Error abriendo portal de facturación', { error: err?.message ?? String(err) })
     return NextResponse.json({ error: 'Error al abrir el portal de facturación' }, { status: 500 })
   }
 }

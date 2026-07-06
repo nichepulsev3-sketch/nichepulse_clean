@@ -6,12 +6,15 @@
  * flujo: registra un warning y sigue (best-effort, nunca bloqueante).
  */
 import { env } from './env'
+import { createLogger } from './logger'
+
+const log = createLogger('email')
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
   const apiKey = env.RESEND_API_KEY
   const from   = env.RESEND_FROM
   if (!apiKey) {
-    console.warn('[email] RESEND_API_KEY no configurada — email no enviado a', to)
+    log.warn('RESEND_API_KEY no configurada — email no enviado', { to })
     return false
   }
   try {
@@ -21,12 +24,12 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
       body: JSON.stringify({ from, to, subject, html }),
     })
     if (!res.ok) {
-      console.error('[email] ❌', res.status, await res.text().catch(() => ''))
+      log.error('Envío de email falló', { status: res.status, body: await res.text().catch(() => '') })
       return false
     }
     return true
   } catch (err: any) {
-    console.error('[email] ❌ error de red', err?.message ?? err)
+    log.error('Error de red enviando email', { error: err?.message ?? String(err) })
     return false
   }
 }

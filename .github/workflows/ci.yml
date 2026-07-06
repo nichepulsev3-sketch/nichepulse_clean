@@ -1,0 +1,36 @@
+name: CI
+
+# Fase 13 del roadmap de arquitectura. Corre en cada push/PR: typecheck,
+# lint y tests. NO despliega nada — Railway sigue siendo quien construye
+# y despliega a producción de forma independiente. El único objetivo de
+# este workflow es dar feedback en el PR antes de hacer merge, en vez de
+# descubrir un error de tipos o un test roto ya en el log de build de
+# Railway (que es como se ha diagnosticado cada incidente hasta ahora).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Comprobar tipos (TypeScript)
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm run test

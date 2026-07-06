@@ -2,6 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('auth/callback')
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
@@ -12,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   // Capturar errores OAuth de Supabase (p.ej. proveedor no habilitado)
   if (error) {
-    console.error('[callback] OAuth error:', error, errorDesc)
+    log.error('OAuth error', { error, errorDesc })
     const msg = errorDesc ?? error
     return NextResponse.redirect(
       `${origin}/auth/login?oauth_error=${encodeURIComponent(msg)}`
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
     )
     const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
     if (!exchangeErr) return NextResponse.redirect(`${origin}${redirect}`)
-    console.error('[callback] Exchange error:', exchangeErr)
+    log.error('Exchange error', { error: exchangeErr.message })
   }
 
   return NextResponse.redirect(`${origin}/auth/login?oauth_error=login_failed`)

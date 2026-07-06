@@ -4,6 +4,9 @@
  */
 import type { NicheResult } from './supabase'
 import { SCORE_META, SCORE_ORDER, scoreCardColor } from './types'
+import { createLogger } from './logger'
+
+const log = createLogger('pdf')
 
 // jsPDF trabaja en RGB, el Motor de Inteligencia expone colores en hex —
 // pequeño conversor para no duplicar la paleta de scoreCardColor aquí.
@@ -286,7 +289,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
   // ── Descarga multiplataforma (PC / Android / iOS) ─────────────
   const filename = `nichepulse-${plan}-${niche.name.replace(/\s+/g,'-').toLowerCase().slice(0,30)}.pdf`
   await triggerDownload(doc, filename)
-  console.log(`[pdf] ✅ Descargado: ${filename}`)
+  log.info('PDF descargado', { filename })
 }
 
 /**
@@ -397,7 +400,7 @@ export async function downloadExecutiveReportPDF(
 
   const filename = `nichepulse-informe-ejecutivo-${query.replace(/\s+/g,'-').toLowerCase().slice(0,30)}.pdf`
   await triggerDownload(doc, filename)
-  console.log(`[pdf] ✅ Informe ejecutivo descargado: ${filename}`)
+  log.info('Informe ejecutivo descargado', { filename })
 }
 
 // ── Detección de plataforma ──────────────────────────────────────
@@ -434,7 +437,7 @@ async function triggerDownload(doc: any, filename: string) {
         return
       } catch (err: any) {
         if (err?.name === 'AbortError') return
-        console.warn('[pdf] Share falló, usando fallback:', err)
+        log.warn('Share falló, usando fallback', { error: err?.message ?? String(err) })
       }
     }
 

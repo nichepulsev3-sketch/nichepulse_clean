@@ -16,6 +16,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getTrends, type TrendSignal } from '@/lib/trends'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('api/radar')
 
 type RadarNiche = {
   name:      string
@@ -83,7 +86,7 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=3600' },
     })
   } catch (err) {
-    console.error('[api/radar]', err)
+    log.error('Error cargando radar de nichos', { error: (err as any)?.message ?? String(err) })
     return NextResponse.json({ error: 'Error al cargar el radar de nichos' }, { status: 500 })
   }
 }

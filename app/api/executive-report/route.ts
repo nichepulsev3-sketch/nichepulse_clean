@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { generateActionPlan } from '@/lib/ai'
+import { createLogger } from '@/lib/logger'
 import { z } from 'zod'
+
+const log = createLogger('api/executive-report')
 
 const Schema = z.object({
   niches: z.array(z.any()).min(1),
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ actionPlan })
 
   } catch (err: any) {
-    console.error('[executive-report]', err)
+    log.error('Error generando informe ejecutivo', { error: err?.message ?? String(err) })
     if (err?.name === 'ZodError') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
     return NextResponse.json({ error: err?.message ?? 'Error interno' }, { status: 500 })
   }

@@ -9,6 +9,9 @@ import VerdictBadge from '@/components/VerdictBadge'
 import CeoMode from '@/components/CeoMode'
 import CompareModal from '@/components/CompareModal'
 import OpportunityFeedBell from '@/components/OpportunityFeedBell'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('dashboard')
 
 // ── Regiones por continente ───────────────────────────────────
 const GEO_REGIONS: Record<string, {code:string;label:string;currency:string}[]> = {
@@ -310,7 +313,7 @@ export default function Dashboard() {
     if(savedNiches.has(key))return
     setSavedNiches(s=>new Set(s).add(key))
     const{error}=await supabase.from('favorites').insert({user_id:user.id,niche_data:niche})
-    if(error){ setSavedNiches(s=>{const n=new Set(s);n.delete(key);return n}); console.error('[favorites]',error) }
+    if(error){ setSavedNiches(s=>{const n=new Set(s);n.delete(key);return n}); log.error('Error guardando favorito', { error: error.message }) }
   }
 
   async function watchNiche(niche:NicheResult){
@@ -323,7 +326,7 @@ export default function Dashboard() {
       last_score:niche.opportunity_score??niche.profit_score??0, last_verdict:niche.verdict??null,
       niche_data:niche,
     },{onConflict:'user_id,niche_name'})
-    if(error){ setWatchedNiches(s=>{const n=new Set(s);n.delete(key);return n}); console.error('[watchlist]',error) }
+    if(error){ setWatchedNiches(s=>{const n=new Set(s);n.delete(key);return n}); log.error('Error guardando en watchlist', { error: error.message }) }
   }
 
   async function handleManageBilling(){
@@ -348,7 +351,7 @@ export default function Dashboard() {
       const json=await res.json()
       if(!res.ok){alert(json.error??'No se pudo generar el informe');return}
       await downloadExecutiveReportPDF(results,profile?.plan??'pro',currency,lastQuery.current||query,json.actionPlan??[])
-    }catch(e){ console.error('[executive-report]',e); alert('No se pudo generar el informe ejecutivo. Inténtalo de nuevo.') }
+    }catch(e){ log.error('Error generando informe ejecutivo', { error: (e as any)?.message ?? String(e) }); alert('No se pudo generar el informe ejecutivo. Inténtalo de nuevo.') }
     finally{ setReportLoading(false) }
   }
 
@@ -685,7 +688,7 @@ export default function Dashboard() {
                                   e.stopPropagation()
                                   setPdfLoading(true)
                                   try { await downloadNichePDF(n,profile?.plan??'pro',currency) }
-                                  catch(err){ console.error('[pdf]',err); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
+                                  catch(err){ log.error('Error generando PDF', { error: (err as any)?.message ?? String(err) }); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
                                   finally { setPdfLoading(false) }
                                 }}
                                 disabled={pdfLoading}
@@ -921,7 +924,7 @@ export default function Dashboard() {
                 <button onClick={async()=>{
                     setPdfLoading(true)
                     try { await downloadNichePDF(selected,profile?.plan??'pro',currency) }
-                    catch(e){ console.error('[pdf]',e); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
+                    catch(e){ log.error('Error generando PDF', { error: (e as any)?.message ?? String(e) }); alert('No se pudo generar el PDF. Inténtalo de nuevo.') }
                     finally { setPdfLoading(false) }
                   }}
                   disabled={pdfLoading}

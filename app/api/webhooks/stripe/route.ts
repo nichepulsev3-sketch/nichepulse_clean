@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logger'
 import Stripe from 'stripe'
+
+const log = createLogger('webhook/stripe')
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -11,8 +14,8 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(body, sig, env.STRIPE_WEBHOOK_SECRET)
-  } catch (err) {
-    console.error('[webhook] Firma inválida:', err)
+  } catch (err: any) {
+    log.error('Firma inválida', { error: err?.message ?? String(err) })
     return NextResponse.json({ error: 'Firma inválida' }, { status: 400 })
   }
 
@@ -30,20 +33,22 @@ export async function POST(req: NextRequest) {
 
   if (dedupeError) {
     if (dedupeError.code === '23505') {
-      console.log(`[webhook] Evento ${event.id} ya procesado antes (reintento de Stripe), ignorando`)
+      log.info('Evento ya procesado antes (reintento de Stripe), ignorando', { eventId: event.id })
       return NextResponse.json({ received: true, duplicate: true })
     }
-    console.error('[webhook] No se pudo registrar idempotencia (¿falta la migración 007?):', dedupeError.message)
+    log.error('No se pudo registrar idempotencia (¿falta la migración 007?)', { eventId: event.id, error: dedupeError.message })
   }
 
   try {
     // ── Pago completado ────────────────────────────────────────
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session
-      console.log('[webhook] checkout.session.completed recibido')
-      console.log('[webhook] metadata:', JSON.stringify(session.metadata))
-      console.log('[webhook] customer:', session.customer)
-      console.log('[webhook] customer_email:', session.customer_details?.email)
+      log.info('checkout.session.completed recibido', {
+        eventId: event.id,
+        metadata: session.metadata,
+        customer: session.customer,
+        customerEmail: session.customer_details?.email,
+      })
 
       // Determinar el plan (desde metadata o desde el precio)
       let plan: 'pro' | 'agency' = (session.metadata?.plan as 'pro' | 'agency') ?? 'pro'
@@ -60,7 +65,7 @@ export async function POST(req: NextRequest) {
       // Forma 1: metadata directa (lo más rápido)
       if (session.metadata?.user_id) {
         userId = session.metadata.user_id
-        console.log('[webhook] Usuario encontrado por metadata:', userId)
+        log.info('Usuario encontrado por metadata', { userId })
       }
 
       // Forma 2: por stripe_customer_id guardado en perfiles
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
           .single()
         if (data?.id) {
           userId = data.id
-          console.log('[webhook] Usuario encontrado por customer_id:', userId)
+          log.info('Usuario encontrado por customer_id', { userId })
         }
       }
 
@@ -85,15 +90,16 @@ export async function POST(req: NextRequest) {
           .single()
         if (data?.id) {
           userId = data.id
-          console.log('[webhook] Usuario encontrado por email:', userId)
+          log.info('Usuario encontrado por email', { userId })
         }
       }
 
       if (!userId) {
-        console.error('[webhook] ❌ No se encontró el usuario. Datos del pago:', {
-          metadata:       session.metadata,
-          customer:       session.customer,
-          customer_email: session.customer_details?.email,
+        log.error('No se encontró el usuario para este pago', {
+          eventId: event.id,
+          metadata: session.metadata,
+          customer: session.customer,
+          customerEmail: session.customer_details?.email,
         })
         // Devolvemos 200 para que Stripe no reintente, pero logueamos el error
         return NextResponse.json({ received: true, warning: 'user_not_found' })
@@ -106,9 +112,9 @@ export async function POST(req: NextRequest) {
         .eq('id', userId)
 
       if (error) {
-        console.error('[webhook] ❌ Error actualizando plan en Supabase:', error)
+        log.error('Error actualizando plan en Supabase', { userId, error: error.message })
       } else {
-        console.log(`[webhook] ✅ Plan actualizado a "${plan}" para usuario ${userId}`)
+        log.info('Plan actualizado', { userId, plan })
       }
     }
 
@@ -126,14 +132,14 @@ export async function POST(req: NextRequest) {
 
       if (data?.id) {
         await db.from('profiles').update({ plan: 'free' }).eq('id', data.id)
-        console.log(`[webhook] ✅ Plan vuelto a free para usuario ${data.id}`)
+        log.info('Plan vuelto a free (suscripción cancelada)', { userId: data.id })
       }
     }
 
     // ── Pago fallido ───────────────────────────────────────────
     else if (event.type === 'invoice.payment_failed') {
       const inv = event.data.object as Stripe.Invoice
-      console.log('[webhook] Pago fallido para:', inv.customer)
+      log.warn('Pago fallido', { customer: inv.customer })
     }
 
     // ── Suscripción actualizada (cambio de plan, reactivación tras
@@ -150,15 +156,15 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (!data?.id) {
-        console.warn('[webhook] subscription.updated: usuario no encontrado para customer', customerId)
+        log.warn('subscription.updated: usuario no encontrado para customer', { customerId })
       } else if (sub.status === 'active' || sub.status === 'trialing') {
         const priceId = sub.items.data[0]?.price?.id
         const plan: 'pro' | 'agency' = priceId === env.STRIPE_PRICE_AGENCY_MONTHLY ? 'agency' : 'pro'
         await db.from('profiles').update({ plan }).eq('id', data.id)
-        console.log(`[webhook] ✅ subscription.updated → plan "${plan}" para usuario ${data.id}`)
+        log.info('subscription.updated → plan actualizado', { userId: data.id, plan })
       } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) {
         await db.from('profiles').update({ plan: 'free' }).eq('id', data.id)
-        console.log(`[webhook] ✅ subscription.updated → plan "free" (status ${sub.status}) para usuario ${data.id}`)
+        log.info('subscription.updated → plan free', { userId: data.id, status: sub.status })
       }
     }
 
@@ -172,13 +178,13 @@ export async function POST(req: NextRequest) {
           // Si el usuario había vuelto a 'free' por un fallo previo y ahora
           // paga con éxito, la suscripción activa se restaura vía
           // customer.subscription.updated (que llega junto a este evento).
-          console.log('[webhook] invoice.paid recibido para usuario', data.id, '— el plan se restaura vía subscription.updated')
+          log.info('invoice.paid recibido — el plan se restaura vía subscription.updated', { userId: data.id })
         }
       }
     }
 
-  } catch (err) {
-    console.error('[webhook] Error inesperado:', err)
+  } catch (err: any) {
+    log.error('Error inesperado procesando webhook', { error: err?.message ?? String(err) })
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 

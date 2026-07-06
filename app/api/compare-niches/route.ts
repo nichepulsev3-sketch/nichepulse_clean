@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { compareNiches } from '@/lib/ai'
+import { createLogger } from '@/lib/logger'
 import { z } from 'zod'
+
+const log = createLogger('api/compare-niches')
 
 // El comparador reutiliza los 12 scores + veredicto que YA generó el
 // Motor de Inteligencia para cada nicho (no vuelve a analizarlos desde
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ verdict })
 
   } catch (err: any) {
-    console.error('[compare-niches]', err)
+    log.error('Error comparando nichos', { error: err?.message ?? String(err) })
     if (err?.name === 'ZodError') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
     return NextResponse.json({ error: err?.message ?? 'Error interno' }, { status: 500 })
   }

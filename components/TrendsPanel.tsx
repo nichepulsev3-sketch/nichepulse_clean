@@ -71,7 +71,7 @@ export default function TrendsPanel({ geo='US', onKeywordClick }: { geo?:string;
       setLastUpdate(new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' }))
       setFromCache(data.from_cache ?? false)
     } catch (e) {
-      console.warn('[TrendsPanel] Error cargando señales:', e)
+      console.warn(JSON.stringify({ scope: 'TrendsPanel', level: 'warn', msg: 'Error cargando señales', error: (e as any)?.message ?? String(e) }))
     } finally {
       setLoading(false)
       setRefreshing(false)

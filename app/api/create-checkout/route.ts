@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { stripe, PLANS } from '@/lib/stripe'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('api/create-checkout')
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
-    console.error('[create-checkout]', err)
+    log.error('Error creando sesión de pago', { error: err?.message ?? String(err) })
     return NextResponse.json({ error: 'Error al crear la sesión de pago' }, { status: 500 })
   }
 }

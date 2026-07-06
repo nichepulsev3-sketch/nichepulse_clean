@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { searchNiches } from '@/lib/ai'
+import { createLogger } from '@/lib/logger'
 import { z } from 'zod'
+
+const log = createLogger('api/search-niches')
 
 const Schema = z.object({
   query:   z.string().min(1).max(200),
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest) {
     //    saltarse el límite (condición de carrera del check-then-act previo).
     const { data: quota, error: quotaErr } = await db.rpc('increment_search_usage', { p_user_id: user.id })
     if (quotaErr) {
-      console.error('[search-niches] quota rpc error', quotaErr)
+      log.error('Error en RPC de cuota', { error: quotaErr.message })
       return NextResponse.json({ error: 'Error interno al verificar tu cuota' }, { status: 500 })
     }
     if (!quota?.ok) {
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ results, searches_used: quota.used, plan: profile.plan })
 
   } catch (err: any) {
-    console.error('[search-niches]', err)
+    log.error('Error en búsqueda de nichos', { error: err?.message ?? String(err) })
     if (err?.name === 'ZodError') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
     return NextResponse.json({ error: err?.message ?? 'Error interno' }, { status: 500 })
   }

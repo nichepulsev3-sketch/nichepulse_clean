@@ -8,6 +8,7 @@ import OpenAI    from 'openai'
 import { jsonrepair } from 'jsonrepair'
 import { getTrends, buildTrendContext } from './trends'
 import { env } from './env'
+import { createLogger } from './logger'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
 
@@ -15,6 +16,8 @@ const anthropic    = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 
 const openaiClient = env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0 })
   : null
+
+const log = createLogger('ai')
 
 /* ── Configuración de modelos por plan ───────────────────────────
  * Los presupuestos de tokens subieron respecto a la versión anterior
@@ -221,7 +224,12 @@ function repairTruncatedArray(text: string): any[] | null {
 }
 
 /* ── Parser JSON robusto ────────────────────────────────────────── */
-function parse(text: string): NicheResult[] | null {
+// Exportado (antes privado) para poder testearlo directamente en
+// tests/ai.parse.test.ts sin tener que mockear las APIs de Claude/OpenAI
+// — es la pieza que más incidentes reales causó esta sesión (truncado,
+// comillas sin escapar), así que es la primera candidata a tener tests
+// de verdad en vez de depender solo de logs de producción para validarla.
+export function parse(text: string): NicheResult[] | null {
   const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
   // Sub-string entre el primer '[' y el último ']' — recorta prosa o
   // fences sobrantes antes de intentar reparar, tanto con jsonrepair
@@ -332,18 +340,23 @@ async function callClaude(model: string, system: string, prompt: string, maxToke
       // de tokens agotado, no un fallo de formato — clave para diagnosticar.
       // Se loguea inicio Y final del texto: la reparación de truncado
       // necesita ver justo el final, que antes se perdía con slice(0,300).
-      console.error(`[claude] ${Date.now()-start}ms → JSON inválido (stop_reason:${(finalMessage as any).stop_reason ?? '?'}, ${text.length} chars)`)
-      console.error(`[claude] inicio:`, text.slice(0, 200))
-      console.error(`[claude] final:`, text.slice(-300))
+      log.error('Claude: JSON inválido', {
+        model, durationMs: Date.now() - start,
+        stopReason: (finalMessage as any).stop_reason ?? '?', chars: text.length,
+        head: text.slice(0, 200), tail: text.slice(-300),
+      })
       throw new Error('Claude: JSON inválido')
     }
-    console.log(`[claude:${model.split('-')[1]}] ✅ ${Date.now()-start}ms → ${parsed.length} nichos`)
+    log.info('Claude: respuesta OK', { model, durationMs: Date.now() - start, nichos: parsed.length })
     return parsed
   } catch (err: any) {
     clearInterval(idleTimer); clearTimeout(hardTimer)
     // Log completo para diagnóstico (status HTTP, tipo de error) — el mensaje
     // genérico que ve el usuario no debe ser la única pista que quede en logs.
-    console.error(`[claude] ❌ ${Date.now()-start}ms → status:${err?.status ?? '?'} name:${err?.name ?? '?'} msg:${err?.message ?? err}`)
+    log.error('Claude: error en la llamada', {
+      model, durationMs: Date.now() - start,
+      status: err?.status ?? '?', name: err?.name ?? '?', message: err?.message ?? String(err),
+    })
     if (abortReason) throw new Error(`Claude: timeout (${abortReason})`)
     if (isAbortError(err)) throw new Error('Claude: timeout')
     if (err?.status === 401) throw new Error('Claude: 401 API key inválida')
@@ -387,14 +400,14 @@ async function callOpenAI(model: string, system: string, prompt: string, maxToke
     clearInterval(idleTimer); clearTimeout(hardTimer)
     const parsed = parse(raw)
     if (!parsed) throw new Error('OpenAI: JSON inválido')
-    console.log(`[openai:${model}] ✅ ${Date.now()-start}ms → ${parsed.length} nichos`)
+    log.info('OpenAI: respuesta OK', { model, durationMs: Date.now() - start, nichos: parsed.length })
     return parsed
   } catch (err: any) {
     clearInterval(idleTimer); clearTimeout(hardTimer)
     if (abortReason) throw new Error(`OpenAI: timeout (${abortReason})`)
     if (isAbortError(err)) throw new Error('OpenAI: timeout')
     if (err?.status===429 || err?.message?.includes('quota') || err?.message?.includes('exceeded')) {
-      console.warn(`[openai] ⚠️ Sin crédito (429)`)
+      log.warn('OpenAI: sin crédito (429)', { model })
       throw new Error('OpenAI: sin crédito')
     }
     if (err?.message?.includes('Connection') || err?.cause) throw new Error('OpenAI: error de conexión')
@@ -404,7 +417,7 @@ async function callOpenAI(model: string, system: string, prompt: string, maxToke
 
 /* ── Motor de carrera paralela ──────────────────────────────────── */
 async function raceAI(promises: Promise<NicheResult[]>[]): Promise<NicheResult[]> {
-  const safe = promises.map(p => p.catch(e => { console.warn('[race]', e?.message); return null }))
+  const safe = promises.map(p => p.catch(e => { log.warn('IA falló en la carrera paralela', { error: e?.message }); return null }))
   return new Promise((resolve, reject) => {
     let settled = 0, resolved = false
     safe.forEach(p => {
@@ -461,13 +474,13 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
     promises.push(callOpenAI(cfg.openai, system, userPrompt, cfg.tokens))
   }
 
-  console.log(`[multi-ia] plan:${plan} | ${promises.length} IAs | geo:${geo}`)
+  log.info('Motor Multi-IA: iniciando búsqueda', { plan, ias: promises.length, geo })
 
   try {
     const results = await raceAI(promises)
     return results.slice(0, maxResults)
   } catch {
-    console.warn('[multi-ia] Reintentando con Claude...')
+    log.warn('Motor Multi-IA: reintentando solo con Claude')
     try {
       const retry = await callClaude(cfg.claude, system, userPrompt, cfg.tokens)
       return retry.slice(0, maxResults)
@@ -475,7 +488,7 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
       // Log completo (no solo el mensaje reducido al usuario) para que el
       // error real quede en los logs de Railway/Vercel y se pueda diagnosticar
       // sin tener que reproducirlo a ciegas.
-      console.error('[multi-ia] ❌ Reintento con Claude también falló:', err?.message ?? err)
+      log.error('Motor Multi-IA: el reintento con Claude también falló', { error: err?.message ?? String(err) })
       const msg = err?.message ?? ''
       if (msg.includes('401')) throw new Error('ANTHROPIC_API_KEY inválida. Compruébala en Railway → Variables.')
       if (msg.includes('429')) throw new Error('Límite de IA alcanzado. Espera 1 minuto.')
@@ -537,7 +550,7 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO, sin markdown ni texto fuera del objeto
     return { winner: obj.winner, reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : '' }
   } catch (err: any) {
     clearTimeout(timer)
-    console.error('[compare] ❌', err?.message ?? err)
+    log.error('Comparador de nichos falló, usando fallback', { error: err?.message ?? String(err) })
     return fallback()
   }
 }
@@ -568,7 +581,7 @@ Cada fase máximo 35 palabras, específica y accionable — nunca genérica.`
     return Array.isArray(obj?.plan) ? obj.plan.filter((p: any) => typeof p === 'string').slice(0,3) : []
   } catch (err: any) {
     clearTimeout(timer)
-    console.error('[action-plan] ❌', err?.message ?? err)
+    log.error('Generación de plan de acción falló', { error: err?.message ?? String(err) })
     return []
   }
 }

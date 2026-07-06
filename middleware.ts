@@ -27,10 +27,16 @@ setInterval(() => {
   rateStore.forEach((v, k) => { if (now > v.resetAt) rateStore.delete(k) })
 }, 5 * 60 * 1000)
 
-/* ── Rutas protegidas ──────────────────────────────────────────── */
-const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/compare', '/alerts']
+/* ── Rutas protegidas ──────────────────────────────────────────── *
+ * '/compare' y '/alerts' se quitaron: nunca existieron como páginas
+ * (el comparador es un modal dentro de /dashboard, no una ruta propia)
+ * — eran referencias muertas de una iteración anterior. Se añadió
+ * '/watchlist' porque sí es una página real que necesita protección
+ * a nivel de middleware, no solo el check client-side de la propia
+ * página (defensa en profundidad: sin esto, un usuario no autenticado
+ * ve un parpadeo de la página antes de la redirección). */
+const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist']
 const AUTH_ROUTES      = ['/auth/login', '/auth/register']
-const API_ROUTES       = ['/api/search-niches', '/api/verify-subscription', '/api/create-checkout', '/api/favorites', '/api/alerts']
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -112,8 +118,7 @@ export const config = {
     '/dashboard/:path*',
     '/radar/:path*',
     '/favorites/:path*',
-    '/compare/:path*',
-    '/alerts/:path*',
+    '/watchlist/:path*',
     '/auth/:path*',
     '/api/:path*',
   ],

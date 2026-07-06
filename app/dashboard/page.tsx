@@ -579,22 +579,22 @@ export default function Dashboard() {
                 <div style={{fontSize:12,color:'var(--t3)',marginBottom:'.75rem',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <span style={{width:7,height:7,borderRadius:'50%',background:'var(--acc3)',display:'inline-block',boxShadow:'0 0 6px var(--acc3)'}}/>
                   {results.length} nichos{isAgency?' · expert':''} · Región: {GEO_MAP[geo]?.label??geo} · {currency}
-                  <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+                  <div style={{marginLeft:isMobile?0:'auto',width:isMobile?'100%':'auto',display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
                     {isPro&&results.length>1&&(
                       <button onClick={handleExecutiveReport} disabled={reportLoading}
                         style={{padding:'5px 12px',borderRadius:14,fontSize:11,fontWeight:600,cursor:reportLoading?'wait':'pointer',border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.1)',color:'var(--acc)',fontFamily:'var(--font-body)',opacity:reportLoading?.6:1}}>
-                        {reportLoading?'⏳ Generando...':'📊 Informe ejecutivo'}
+                        {reportLoading?'⏳':(isMobile?'📊 Informe':'📊 Informe ejecutivo')}
                       </button>
                     )}
                     {compareSet.size>=2&&(
                       <button onClick={()=>setShowCompare(true)}
                         style={{padding:'5px 12px',borderRadius:14,fontSize:11,fontWeight:700,cursor:'pointer',border:'1px solid rgba(0,229,195,0.4)',background:'rgba(0,229,195,0.12)',color:'var(--acc3)',fontFamily:'var(--font-body)'}}>
-                        🆚 Comparar ({compareSet.size})
+                        🆚 {isMobile?compareSet.size:`Comparar (${compareSet.size})`}
                       </button>
                     )}
                     <button onClick={()=>setCeoMode(v=>!v)}
                       style={{padding:'5px 12px',borderRadius:14,fontSize:11,fontWeight:600,cursor:'pointer',border:`1px solid ${ceoMode?'rgba(124,111,255,0.55)':'rgba(255,255,255,0.1)'}`,background:ceoMode?'rgba(124,111,255,0.18)':'transparent',color:ceoMode?'var(--acc)':'var(--t3)',fontFamily:'var(--font-body)'}}>
-                      💼 {ceoMode?'Modo CEO ✓':'Modo CEO'}
+                      💼 {isMobile?'CEO':(ceoMode?'Modo CEO ✓':'Modo CEO')}
                     </button>
                   </div>
                 </div>
@@ -631,9 +631,9 @@ export default function Dashboard() {
                           ))}
                         </div>
                         <div className="score-bar" style={{marginTop:10}}><div className="score-fill" style={{width:`${n.profit_score}%`}}/></div>
-                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8}}>
-                          <span style={{fontSize:11,color:'var(--t3)'}}>Pulsa para ver detalles →</span>
-                          <div style={{display:'flex',gap:6,flexShrink:0}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:isMobile?'flex-end':'space-between',flexWrap:'wrap',rowGap:6,marginTop:8}}>
+                          {!isMobile&&<span style={{fontSize:11,color:'var(--t3)'}}>Pulsa para ver detalles →</span>}
+                          <div style={{display:'flex',gap:isMobile?5:6,flexWrap:'wrap',flexShrink:0,width:isMobile?'100%':'auto',justifyContent:isMobile?'flex-start':'flex-end'}}>
                             <button
                               onClick={(e)=>{ e.stopPropagation(); saveFavorite(n) }}
                               disabled={savedNiches.has(n.name)}
@@ -643,10 +643,10 @@ export default function Dashboard() {
                                 background:savedNiches.has(n.name)?'rgba(255,209,102,0.18)':'rgba(255,255,255,0.06)',
                                 border:`1px solid ${savedNiches.has(n.name)?'rgba(255,209,102,0.4)':'rgba(255,255,255,0.12)'}`,
                                 color:savedNiches.has(n.name)?'#ffd166':'var(--t2)',
-                                borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                borderRadius:8,padding:isMobile?'5px 8px':'4px 10px',fontSize:11,fontWeight:600,
                                 cursor:savedNiches.has(n.name)?'default':'pointer',fontFamily:'var(--font-body)',
                               }}>
-                              {savedNiches.has(n.name)?'★ Guardado':'☆ Favorito'}
+                              {isMobile?(savedNiches.has(n.name)?'★':'☆'):(savedNiches.has(n.name)?'★ Guardado':'☆ Favorito')}
                             </button>
                             {isPro&&(
                               <button
@@ -658,10 +658,10 @@ export default function Dashboard() {
                                   background:watchedNiches.has(n.name)?'rgba(124,111,255,0.18)':'rgba(255,255,255,0.06)',
                                   border:`1px solid ${watchedNiches.has(n.name)?'rgba(124,111,255,0.4)':'rgba(255,255,255,0.12)'}`,
                                   color:watchedNiches.has(n.name)?'var(--acc)':'var(--t2)',
-                                  borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                  borderRadius:8,padding:isMobile?'5px 8px':'4px 10px',fontSize:11,fontWeight:600,
                                   cursor:watchedNiches.has(n.name)?'default':'pointer',fontFamily:'var(--font-body)',
                                 }}>
-                                {watchedNiches.has(n.name)?'👁 Vigilando':'👁 Vigilar'}
+                                {isMobile?'👁':(watchedNiches.has(n.name)?'👁 Vigilando':'👁 Vigilar')}
                               </button>
                             )}
                             {isPro&&(
@@ -673,10 +673,10 @@ export default function Dashboard() {
                                   background:compareSet.has(n.name)?'rgba(0,229,195,0.18)':'rgba(255,255,255,0.06)',
                                   border:`1px solid ${compareSet.has(n.name)?'rgba(0,229,195,0.4)':'rgba(255,255,255,0.12)'}`,
                                   color:compareSet.has(n.name)?'var(--acc3)':'var(--t2)',
-                                  borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                  borderRadius:8,padding:isMobile?'5px 8px':'4px 10px',fontSize:11,fontWeight:600,
                                   cursor:'pointer',fontFamily:'var(--font-body)',
                                 }}>
-                                {compareSet.has(n.name)?'✓ Comparando':'🆚 Comparar'}
+                                {isMobile?'🆚':(compareSet.has(n.name)?'✓ Comparando':'🆚 Comparar')}
                               </button>
                             )}
                             {isPro&&(
@@ -695,11 +695,11 @@ export default function Dashboard() {
                                   background:isAgency?'rgba(255,153,0,0.12)':'rgba(124,111,255,0.12)',
                                   border:`1px solid ${isAgency?'rgba(255,153,0,0.35)':'rgba(124,111,255,0.35)'}`,
                                   color:isAgency?'#ff9900':'var(--acc)',
-                                  borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:600,
+                                  borderRadius:8,padding:isMobile?'5px 8px':'4px 10px',fontSize:11,fontWeight:600,
                                   cursor:pdfLoading?'wait':'pointer',fontFamily:'var(--font-body)',
                                   opacity:pdfLoading?.6:1,
                                 }}>
-                                {pdfLoading?'⏳':'⬇'} PDF
+                                {pdfLoading?'⏳':'⬇'}{!isMobile&&' PDF'}
                               </button>
                             )}
                           </div>

@@ -11,12 +11,15 @@ export const viewport: Viewport = {
   colorScheme:   'dark',
   width:         'device-width',
   initialScale:  1,
-  maximumScale:  1,
-  userScalable:  false,
+  // maximumScale:1 + userScalable:false bloqueaban el pinch-to-zoom —
+  // rompe WCAG 2.1 (1.4.4) para usuarios con baja visión. Permitir zoom
+  // hasta 5x no afecta el look de la app en uso normal.
+  maximumScale:  5,
   viewportFit:   'cover',
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nichepulse.app'),
   title:       'NichepulseV.3 — Motor Multi-IA de Dropshipping',
   description: 'El sistema más avanzado de análisis de nichos dropshipping. Motor Multi-IA, Opportunity Score, Radar de Nichos y más.',
   manifest:    '/manifest.json',

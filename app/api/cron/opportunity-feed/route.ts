@@ -73,6 +73,15 @@ export async function POST(req: NextRequest) {
       : { data: [] as any[] }
     const profileMap = new Map((profilesRows ?? []).map((p: any) => [p.id, p]))
 
+    // Se acumulan las alertas en memoria y se insertan en un único INSERT
+    // por lotes al final, en vez de un INSERT por nicho cambiado (podían
+    // ser hasta ~160 round-trips secuenciales por ejecución con el límite
+    // actual de 40 búsquedas × 4 nichos). Los updates de watchlist se
+    // lanzan en paralelo con Promise.all en vez de awaits secuenciales.
+    const alertRows: any[] = []
+    const watchlistUpdates: Promise<any>[] = []
+    const emailJobs: Promise<boolean>[] = []
+
     for (const target of targets) {
       processed++
       try {
@@ -94,36 +103,34 @@ export async function POST(req: NextRequest) {
 
           const message = buildMessage(freshNiche.name, oldScore, newScore, oldVerdict, newVerdict)
 
-          // Alerta general del feed
-          await db.from('opportunity_alerts').insert({
+          alertRows.push({
             user_id: target.user_id, niche_name: freshNiche.name, query: target.query,
             old_score: oldScore, new_score: newScore, old_verdict: oldVerdict, new_verdict: newVerdict,
             message, source: 'feed',
           })
-          alertsCreated++
 
           // ¿Está en la watchlist de este usuario? → también email.
           const watched = (watchlistRows ?? []).find((w: any) => w.user_id === target.user_id && w.niche_name === freshNiche.name)
           if (watched) {
-            await db.from('watchlist').update({
-              last_score: newScore, last_verdict: newVerdict, niche_data: freshNiche,
-            }).eq('id', watched.id)
+            watchlistUpdates.push(
+              db.from('watchlist').update({
+                last_score: newScore, last_verdict: newVerdict, niche_data: freshNiche,
+              }).eq('id', watched.id)
+            )
 
-            await db.from('opportunity_alerts').insert({
+            alertRows.push({
               user_id: target.user_id, niche_name: freshNiche.name, query: target.query,
               old_score: oldScore, new_score: newScore, old_verdict: oldVerdict, new_verdict: newVerdict,
               message, source: 'watchlist',
             })
-            alertsCreated++
 
             const profile = profileMap.get(target.user_id)
             if (profile?.email) {
-              const sent = await sendEmail({
+              emailJobs.push(sendEmail({
                 to: profile.email,
                 subject: `📡 ${freshNiche.name} cambió en tu watchlist — NichePulse`,
                 html: opportunityAlertEmail(freshNiche.name, message, appUrl),
-              })
-              if (sent) emailsSent++
+              }))
             }
           }
         }
@@ -131,6 +138,14 @@ export async function POST(req: NextRequest) {
         errors.push(`${target.user_id}/${target.query}: ${innerErr?.message ?? innerErr}`)
       }
     }
+
+    if (alertRows.length) {
+      const { error: insertErr } = await db.from('opportunity_alerts').insert(alertRows)
+      if (insertErr) errors.push(`insert alertas: ${insertErr.message}`)
+      else alertsCreated = alertRows.length
+    }
+    if (watchlistUpdates.length) await Promise.all(watchlistUpdates)
+    if (emailJobs.length) emailsSent = (await Promise.all(emailJobs)).filter(Boolean).length
 
     return NextResponse.json({ ok: true, processed, alertsCreated, emailsSent, errors: errors.slice(0, 10) })
 

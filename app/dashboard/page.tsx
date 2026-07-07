@@ -252,6 +252,11 @@ export default function Dashboard() {
   const [results,      setResults]      = useState<NicheResult[]>([])
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState('')
+  // Camino A del Motor propio (vista previa instantánea, sin IA — ver
+  // MOTOR_PROPIO_PROPUESTA.md). Estado 100% separado del de la búsqueda
+  // con IA: nunca puede interferir con `results`/`loading`/`error`.
+  const [fastPreview,        setFastPreview]        = useState<any>(null)
+  const [fastPreviewLoading, setFastPreviewLoading] = useState(false)
   const [selected,     setSelected]     = useState<NicheResult|null>(null)
   const [tab,          setTab]          = useState<Tab>('search')
   const [history,      setHistory]      = useState<{query:string;results:NicheResult[];created_at:string}[]>([])
@@ -374,6 +379,21 @@ export default function Dashboard() {
     }catch{setError('Error de conexión.')}
     finally{setLoading(false)}
   },[query,filters,geo,loading])
+
+  // Camino A del Motor propio: vista previa instantánea sin IA, gratis,
+  // basada en señales reales de trends.ts (ver MOTOR_PROPIO_PROPUESTA.md).
+  // No consume cuota de búsquedas ni reemplaza el análisis completo.
+  const runFastPreview=useCallback(async()=>{
+    if(!query.trim()||fastPreviewLoading)return
+    setFastPreviewLoading(true);setFastPreview(null)
+    try{
+      const{data:{session}}=await supabase.auth.getSession()
+      const res=await fetch('/api/search-preview',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token}`},body:JSON.stringify({query,geo})})
+      const json=await res.json()
+      if(res.ok)setFastPreview(json)
+    }catch{ /* no bloqueante: la vista previa rápida nunca debe interrumpir el flujo normal */ }
+    finally{setFastPreviewLoading(false)}
+  },[query,geo,fastPreviewLoading])
 
   // Auto-búsqueda al llegar desde /radar o el Command Palette con ?q=palabra
   // (declarado después de runSearch porque es un const y no se puede referenciar antes)
@@ -551,12 +571,38 @@ export default function Dashboard() {
                     {/* Badge moneda */}
                     {geo&&<span style={{fontSize:11,color:'var(--acc3)',background:'rgba(0,229,195,0.1)',border:'0.5px solid rgba(0,229,195,0.3)',borderRadius:6,padding:'3px 7px',whiteSpace:'nowrap',flexShrink:0,fontWeight:600}}>{currency}</span>}
                   </div>
+                  <button onClick={runFastPreview} disabled={fastPreviewLoading||!query.trim()} title="Vista previa instantánea sin IA, gratis — señales en vivo de Google/TikTok/Amazon"
+                    style={{background:'transparent',color:'var(--acc3)',border:'1px solid rgba(0,229,195,0.35)',padding:isMobile?'0 10px':'0 14px',borderRadius:9,fontSize:13,fontWeight:600,cursor:fastPreviewLoading||!query.trim()?'not-allowed':'pointer',whiteSpace:'nowrap',opacity:fastPreviewLoading||!query.trim()?.5:1,fontFamily:'var(--font-body)',height:42}}>
+                    {fastPreviewLoading?'⚡...':isMobile?'⚡':'⚡ Vista rápida'}
+                  </button>
                   <button onClick={()=>runSearch()} disabled={loading||!query.trim()||noSearches}
                     style={{background:isAgency?'var(--g2)':'var(--g1)',color:'#fff',border:'none',padding:'0 18px',borderRadius:9,fontSize:14,fontWeight:600,cursor:loading||!query.trim()||noSearches?'not-allowed':'pointer',whiteSpace:'nowrap',opacity:loading||!query.trim()||noSearches?.5:1,fontFamily:'var(--font-body)',height:42,boxShadow:loading?'none':'0 4px 14px rgba(124,111,255,0.35)'}}>
                     {loading?'⏳ Multi-IA...':isAgency?'🏆 Expert Analizar':'✦ Analizar'}
                   </button>
                 </div>
               </div>
+
+              {/* Camino A: vista previa instantánea sin IA (Motor propio) */}
+              {fastPreview&&(
+                <div style={{background:'var(--c3)',border:`1px solid ${fastPreview.matched?'rgba(0,229,195,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:'10px 14px',marginBottom:'.9rem',fontSize:12.5}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:6}}>
+                    <span style={{fontWeight:700,color:'var(--acc3)'}}>⚡ Vista rápida (sin IA, gratis)</span>
+                    <button onClick={()=>setFastPreview(null)} style={{background:'none',border:'none',color:'var(--t3)',cursor:'pointer',fontSize:13,padding:0}}>✕</button>
+                  </div>
+                  {fastPreview.matched?(
+                    <>
+                      <div style={{color:'var(--t2)',marginBottom:6}}>
+                        Momentum score: <strong style={{color:'var(--t1)'}}>{fastPreview.fastOpportunityScore}</strong> · Confianza: <strong style={{color:'var(--t1)'}}>{fastPreview.confidence}</strong>
+                      </div>
+                      <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:3}}>
+                        {fastPreview.reasons.map((r:string,i:number)=><li key={i} style={{color:'var(--t3)'}}>• {r}</li>)}
+                      </ul>
+                    </>
+                  ):(
+                    <div style={{color:'var(--t3)'}}>{fastPreview.reasons[0]}</div>
+                  )}
+                </div>
+              )}
               <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                 {FILTERS.map(f=>(
                   <button key={f.key} onClick={()=>setFilters(p=>({...p,[f.key]:!p[f.key]}))}

@@ -15,6 +15,16 @@
 
 Pendiente de ti: ejecutar la migración 010 en Supabase y configurar el nuevo cron (mismo `CRON_SECRET`, ver README punto 10). El panel ya funciona en cuanto despliegues, aunque hasta que no haya respuestas reales se verá todo en cero.
 
+## Camino A — Ejecutado
+
+Confirmado por el CEO ("sí, constrúyelo ya"). Construido tal como se describía en la sección 2 original de este documento:
+
+- **`lib/services/scoringEngine.ts`** — `computeFastScore(query, trends)`: calcula un "momentum score" (0-100) buscando coincidencias literales entre la búsqueda del usuario y las señales en vivo de `lib/trends.ts` (Google Trends, TikTok, Amazon Movers). Cero llamadas a IA, respuesta instantánea. Si no hay ninguna señal que coincida, lo dice explícitamente (`confidence: 'sin_datos'`) en vez de inventar un número — misma honestidad que el resto del proyecto.
+- **`app/api/search-preview/route.ts`** — lo expone. Gateado por el feature flag `fast_mode` (activado por defecto, se puede apagar sin redeploy).
+- **`app/dashboard/page.tsx`** — botón "⚡ Vista rápida" junto al buscador principal: llama a la vista previa sin tocar en absoluto el flujo de búsqueda con IA (estado completamente separado, `fastPreview`/`fastPreviewLoading`).
+
+**Limitación honesta:** la coincidencia es literal por palabra, no semántica. Las señales de trends.ts vienen mayormente en inglés; una búsqueda en español rara vez coincidirá con ellas literalmente. Cuando eso pasa, la vista previa dice "no hay datos" en vez de simular un score — es preferible a fingir precisión. Mejorar esto (fuzzy matching o traducir señales) es una mejora futura, no bloqueante para lo que se pidió.
+
 ## 0. El problema real, dicho sin rodeos
 
 Hoy, cuando `lib/ai.ts` marca un nicho como `"invertir"` con opportunity_score 85, **nadie ha comprobado nunca si eso se corresponde con algo real**. La IA razona a partir de señales de mercado (Google Trends, TikTok, Amazon Movers — `lib/trends.ts`) y devuelve una opinión bien argumentada, pero una opinión al fin y al cabo, no una predicción validada contra resultados reales de dropshippers.
@@ -89,6 +99,17 @@ No antes de tener unos cuantos cientos de resultados reales etiquetados (`tried=
 |---|---|
 | ¿Empezamos ya con el Camino A (fórmula rápida, sin IA, disponible en días) aunque sepamos que no es "más precisa", solo más rápida y gratis? | Define si escribo `scoringEngine.ts` ahora o esperamos. |
 | ¿Autorizas añadir el email de seguimiento 30/60/90 días para capturar `niche_outcomes`, sabiendo que tardará meses en dar volumen útil? | Es la única forma de que el Camino B sea real algún día — cuanto antes se active, antes hay datos. |
-| ¿El Camino A se ofrece a todos los planes (incluido Free, como diferenciador de velocidad) o solo como preview antes del análisis completo de pago? | Decisión de producto/pricing, no técnica. |
+| ~~¿El Camino A se ofrece a todos los planes (incluido Free, como diferenciador de velocidad) o solo como preview antes del análisis completo de pago?~~ | **Resuelto.** El CEO confirmó explícitamente: todos los planes, incluido Free — cuantos más usuarios (empezando por Free) prueben la vista rápida, más señal real entra al Niche Intelligence Graph antes de que decidan pagar, y eso hace que la IA se vuelva más precisa a medida que la gente sube de plan. |
 
 No hay atajo honesto que salte estos pasos — la parte "rápida y sin tokens" se puede tener pronto; la parte "predictiva de verdad" depende de tiempo acumulando datos reales, no de más ingeniería esta semana.
+
+**Actualización:** el CEO confirmó "sí, constrúyelo ya" — Camino A ejecutado (ver sección "Camino A — Ejecutado" arriba), disponible para todos los planes sin restricción.
+
+## 7. Cierre del hueco: el uso de Free también alimenta el aprendizaje
+
+Hasta esta actualización, la Vista rápida (Camino A) no dejaba ningún rastro en el Niche Intelligence Graph — cualquier usuario podía usarla, pero ese uso no se traducía en dato acumulado. Se cerró así:
+
+- **`app/api/search-preview/route.ts`** ahora llama a `recordInteraction(db, { userId, nicheName: query, type: 'view', geo })` después de calcular el score rápido.
+- Deliberadamente **no crea nichos nuevos** desde aquí: `recordInteraction` solo registra la interacción si el nicho ya existe en el Graph (creado antes por un análisis completo con IA). El momentum score de Camino A no está validado y es de naturaleza distinta al `opportunity_score` de la IA — mezclarlos degradaría la calidad del contexto que usa el Copiloto (Fase 11) y el resto del Graph.
+- Efecto práctico: cuando un usuario Free (o cualquier plan) usa Vista rápida sobre un nicho que ya conoce el sistema, queda registrado como señal de interés real (`user_niche_interactions`), sumando a `times_analyzed` y al perfil de comportamiento (`getUserProfile()`) sin coste de tokens ni afectar el análisis completo de pago.
+- Verificado: 0 bytes no-ASCII en el archivo (mismo chequeo aplicado tras los incidentes de `nicheGraph.ts`).

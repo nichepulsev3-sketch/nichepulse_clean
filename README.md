@@ -109,6 +109,7 @@ nichepulse/
 │   │   ├── user-profile/     → Perfil derivado del Niche Intelligence Graph (Fase 2)
 │   │   ├── niches/related/   → Nichos relacionados por tags compartidos (Fase 7)
 │   │   ├── copilot/          → Copiloto de negocio, IA + contexto del Graph (Fase 11, Pro/Agency)
+│   │   ├── search-preview/   → Camino A: vista previa instantánea sin IA (Motor propio)
 │   │   └── webhooks/stripe/  → Eventos de suscripción (idempotentes)
 │   ├── auth/login/           → Login / Registro
 │   ├── dashboard/            → App principal
@@ -131,7 +132,8 @@ nichepulse/
 │       ├── cache.ts          → Caché en memoria con TTL (resultados IA, etc.)
 │       ├── featureFlags.ts   → Activar/desactivar funcionalidades sin desplegar
 │       ├── nicheGraph.ts     → Niche Intelligence Graph (ver NICHEPULSE_PLATFORM_STRATEGY.md)
-│       └── userProfile.ts    → Perfil de usuario derivado del Graph (Fase 2, solo lectura)
+│       ├── userProfile.ts    → Perfil de usuario derivado del Graph (Fase 2, solo lectura)
+│       └── scoringEngine.ts  → Camino A: score rápido sin IA desde señales de trends.ts
 ├── tests/                    → Vitest (unit) + tests/e2e (Playwright)
 ├── .github/workflows/ci.yml  → Typecheck + lint + tests en cada PR
 ├── sentry.*.config.ts, instrumentation.ts → Sentry (opcional, activa con NEXT_PUBLIC_SENTRY_DSN)

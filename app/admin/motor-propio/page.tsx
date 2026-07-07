@@ -90,8 +90,8 @@ export default function MotorPropioAdminPage() {
 
             {/* Tasa de respuesta por hito */}
             <SectionTitle>Tasa de respuesta por hito</SectionTitle>
-            <div style={{ border: '1px solid var(--brd-1)', borderRadius: 14, overflow: 'hidden', marginBottom: 24 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ border: '1px solid var(--brd-1)', borderRadius: 14, overflow: 'auto', marginBottom: 24 }}>
+              <table style={{ width: '100%', minWidth: 420, borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-subtle)', textAlign: 'left' }}>
                     <Th>Hito</Th><Th>Emails enviados</Th><Th>Respuestas</Th><Th>Tasa</Th>
@@ -115,8 +115,8 @@ export default function MotorPropioAdminPage() {
             {stats.recent.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--txt-3)' }}>Todavía no ha llegado ninguna respuesta.</div>
             ) : (
-              <div style={{ border: '1px solid var(--brd-1)', borderRadius: 14, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div style={{ border: '1px solid var(--brd-1)', borderRadius: 14, overflow: 'auto' }}>
+                <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-subtle)', textAlign: 'left' }}>
                       <Th>Nicho</Th><Th>Hito</Th><Th>Resultado</Th><Th>Fecha</Th>

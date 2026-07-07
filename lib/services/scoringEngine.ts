@@ -89,7 +89,7 @@ export function computeFastScore(query: string, trends: AggregatedTrends): FastS
   for (const signal of allSignals) {
     const signalTokens = tokenize(signal.keyword)
     let overlap = 0
-    for (const t of queryTokens) if (signalTokens.has(t)) overlap++
+    for (const t of Array.from(queryTokens)) if (signalTokens.has(t)) overlap++
     if (overlap > 0) {
       matches.push({
         keyword: signal.keyword,

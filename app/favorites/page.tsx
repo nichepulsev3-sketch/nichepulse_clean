@@ -1,17 +1,20 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase'
+import { recordInteraction } from '@/lib/services/nicheGraph'
 import type { FavoriteNiche } from '@/lib/types'
 import SkeletonCard from '@/components/SkeletonCard'
 import SubPageNav from '@/components/SubPageNav'
 import EmptyState from '@/components/EmptyState'
 import { ListRow, ScoreDeleteAction } from '@/components/ListItem'
+import ScoreGrid from '@/components/ScoreGrid'
 
 export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteNiche[]>([])
   const [loading,   setLoading]   = useState(true)
   const [search,    setSearch]    = useState('')
   const [collection,setCollection]= useState<string|null>(null)
+  const [expanded,  setExpanded]  = useState<string|null>(null)
   const supabase = getSupabaseBrowser()
 
   useEffect(() => {
@@ -24,14 +27,25 @@ export default function FavoritesPage() {
   async function loadFavorites() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('favorites').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    // NOTA: la columna real en la tabla es `niche_data` (ver migración 003),
+    // pero el resto de este componente (y el tipo FavoriteNiche) siempre
+    // esperó un campo `niche` — sin el alias de abajo, `fav.niche` era
+    // siempre undefined y esta página nunca mostró de verdad nombre, market
+    // size ni margin de ningún favorito. Bug preexistente encontrado al
+    // conectar el Niche Intelligence Graph, corregido de paso.
+    const { data } = await supabase.from('favorites').select('id, user_id, niche:niche_data, note, tags, collection, created_at').eq('user_id', user.id).order('created_at', { ascending: false })
     if (data) setFavorites(data as any)
     setLoading(false)
   }
 
   async function removeFavorite(id: string) {
+    const fav = favorites.find(f => f.id === id)
     await supabase.from('favorites').delete().eq('id', id)
     setFavorites(f => f.filter(x => x.id !== id))
+    if (fav?.niche?.name) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) recordInteraction(supabase, { userId: user.id, nicheName: fav.niche.name, type: 'favorite_remove' })
+    }
   }
 
   const collections = Array.from(new Set(favorites.map(f => f.collection).filter(Boolean)))
@@ -70,33 +84,47 @@ export default function FavoritesPage() {
           />
         ) : (
           <div style={{ display:'grid', gap:10 }}>
-            {filtered.map(fav => (
-              <ListRow key={fav.id}>
-                <div style={{ flex:1 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                    <span style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'.92rem' }}>{fav.niche?.name ?? '—'}</span>
-                    {fav.collection && <span className="badge badge-brand" style={{ fontSize:10 }}>📁 {fav.collection}</span>}
-                  </div>
-                  <div style={{ display:'flex', gap:10, fontSize:12, color:'var(--txt-3)', flexWrap:'wrap' }}>
-                    {fav.niche?.market_size && <span>📊 {fav.niche.market_size}</span>}
-                    {fav.niche?.margin      && <span>💰 {fav.niche.margin}</span>}
-                    <span>📅 {new Date(fav.created_at).toLocaleDateString('es-ES',{day:'2-digit',month:'short'})}</span>
-                  </div>
-                  {fav.note && <div style={{ fontSize:12, color:'var(--txt-2)', marginTop:6, fontStyle:'italic' }}>"{fav.note}"</div>}
-                  {fav.tags?.length > 0 && (
-                    <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginTop:7 }}>
-                      {fav.tags.map(t => <span key={t} className="badge badge-teal" style={{ fontSize:10 }}>{t}</span>)}
+            {filtered.map(fav => {
+              const isOpen = expanded === fav.id
+              const hasScores = !!fav.niche?.scores
+              return (
+                <div key={fav.id}>
+                  <ListRow>
+                    <div style={{ flex:1, cursor: hasScores ? 'pointer' : 'default' }} onClick={() => hasScores && setExpanded(isOpen ? null : fav.id)}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
+                        <span style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:'.92rem' }}>{fav.niche?.name ?? '—'}</span>
+                        {fav.collection && <span className="badge badge-brand" style={{ fontSize:10 }}>📁 {fav.collection}</span>}
+                        {hasScores && (
+                          <span style={{ fontSize: 11, color: 'var(--brand)' }}>{isOpen ? '▲ ocultar por qué' : '▼ ver por qué'}</span>
+                        )}
+                      </div>
+                      <div style={{ display:'flex', gap:10, fontSize:12, color:'var(--txt-3)', flexWrap:'wrap' }}>
+                        {fav.niche?.market_size && <span>📊 {fav.niche.market_size}</span>}
+                        {fav.niche?.margin      && <span>💰 {fav.niche.margin}</span>}
+                        <span>📅 {new Date(fav.created_at).toLocaleDateString('es-ES',{day:'2-digit',month:'short'})}</span>
+                      </div>
+                      {fav.note && <div style={{ fontSize:12, color:'var(--txt-2)', marginTop:6, fontStyle:'italic' }}>"{fav.note}"</div>}
+                      {fav.tags?.length > 0 && (
+                        <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginTop:7 }}>
+                          {fav.tags.map(t => <span key={t} className="badge badge-teal" style={{ fontSize:10 }}>{t}</span>)}
+                        </div>
+                      )}
+                    </div>
+                    <ScoreDeleteAction
+                      score={fav.niche?.opportunity_score ?? fav.niche?.profit_score ?? 0}
+                      display={fav.niche?.opportunity_score ?? fav.niche?.profit_score ?? '—'}
+                      onDelete={() => removeFavorite(fav.id)}
+                      deleteTitle="Eliminar favorito"
+                    />
+                  </ListRow>
+                  {isOpen && hasScores && (
+                    <div style={{ marginTop: 8, padding: '10px 4px' }}>
+                      <ScoreGrid scores={fav.niche.scores} compact />
                     </div>
                   )}
                 </div>
-                <ScoreDeleteAction
-                  score={fav.niche?.opportunity_score ?? fav.niche?.profit_score ?? 0}
-                  display={fav.niche?.opportunity_score ?? fav.niche?.profit_score ?? '—'}
-                  onDelete={() => removeFavorite(fav.id)}
-                  deleteTitle="Eliminar favorito"
-                />
-              </ListRow>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

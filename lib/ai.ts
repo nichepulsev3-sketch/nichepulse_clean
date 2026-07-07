@@ -614,3 +614,66 @@ Cada fase máximo 35 palabras, específica y accionable — nunca genérica.`
     return []
   }
 }
+
+/* ── Copiloto de negocio (Fase 11 de NICHEPULSE_PLATFORM_STRATEGY.md) ──
+ * Deliberadamente su propia función, separada de buildSystem/searchNiches
+ * (el prompt de 12 scorecards, la pieza más frágil del sistema — no se
+ * toca aquí). Responde como consultor estratégico, no como chatbot:
+ * nunca "depende de muchos factores", siempre una recomendación directa
+ * basada SOLO en las señales reales que se le pasan (Niche Intelligence
+ * Graph + perfil del usuario) — si no hay datos suficientes, lo dice. */
+const COPILOT_TIMEOUT = 20000
+
+export interface CopilotAnswer { answer: string; basedOn: string[] }
+
+export async function askCopilot(
+  question: string,
+  context: { topNiches: any[]; userProfile?: any },
+  plan: Plan
+): Promise<CopilotAnswer> {
+  const model = AI_CONFIG[plan]?.claude ?? AI_CONFIG.pro.claude
+  const system = `Eres un consultor estratégico senior de oportunidades de negocio en ecommerce/dropshipping. Un cliente te hace una pregunta directa (p.ej. "¿qué negocio abrirías hoy?", "¿qué país elegirías?"). Respondes como un consultor de verdad: una recomendación concreta y accionable, NUNCA una lista de factores genéricos ni un "depende".
+Usa EXCLUSIVAMENTE los datos reales que se te dan a continuación (nichos con su score/veredicto más reciente, y el perfil de comportamiento del propio cliente si existe). Si los datos no son suficientes para responder con confianza, dilo explícitamente en vez de inventar una respuesta que suene bien.
+RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO: {"answer":"<respuesta directa, máximo 60 palabras>","basedOn":["dato concreto usado 1","dato concreto usado 2"]}
+"basedOn" debe listar los datos reales en los que te apoyaste (nombres de nicho, scores, países del perfil) — nunca una descripción vaga como "análisis de mercado".`
+
+  const contextBlock = {
+    pregunta: question,
+    nichos_recientes: (context.topNiches ?? []).slice(0, 8).map(n => ({
+      name: n.display_name ?? n.name, opportunity_score: n.latest_opportunity_score, verdict: n.latest_verdict,
+    })),
+    perfil_del_cliente: context.userProfile ? {
+      paises_frecuentes: context.userProfile.topGeos?.map((g: any) => g.geo),
+      categorias_preferidas: context.userProfile.topTags?.map((t: any) => t.tag),
+      score_medio_que_acepta: context.userProfile.avgAcceptedScore,
+    } : null,
+  }
+
+  const fallback = (): CopilotAnswer => {
+    const best = (context.topNiches ?? [])[0]
+    return best
+      ? { answer: `No pude generar una recomendación razonada ahora mismo. De tus señales más recientes, "${best.display_name ?? best.name}" tiene el mejor Opportunity Score (${best.latest_opportunity_score}).`, basedOn: [`${best.display_name ?? best.name}: score ${best.latest_opportunity_score}`] }
+      : { answer: 'No tengo todavía suficientes datos analizados para dar una recomendación con confianza — analiza algunos nichos primero.', basedOn: [] }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), COPILOT_TIMEOUT)
+  try {
+    const res = await anthropic.messages.create(
+      { model, max_tokens: 500, system, messages: [{ role: 'user', content: `${JSON.stringify(contextBlock)}\n\nDevuelve SOLO el JSON.` }] },
+      { signal: controller.signal }
+    )
+    clearTimeout(timer)
+    const text = res.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
+    const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+    const s = clean.indexOf('{'), e = clean.lastIndexOf('}')
+    if (s < 0 || e <= s) throw new Error('Copiloto: JSON inválido')
+    const obj = JSON.parse(clean.slice(s, e + 1))
+    if (typeof obj?.answer !== 'string') throw new Error('Copiloto: respuesta sin "answer"')
+    return { answer: obj.answer, basedOn: Array.isArray(obj.basedOn) ? obj.basedOn.filter((b: any) => typeof b === 'string') : [] }
+  } catch (err: any) {
+    clearTimeout(timer)
+    log.error('Copiloto de negocio falló, usando fallback', { error: err?.message ?? String(err) })
+    return fallback()
+  }
+}

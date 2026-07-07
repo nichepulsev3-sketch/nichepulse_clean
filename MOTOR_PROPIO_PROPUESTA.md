@@ -1,5 +1,7 @@
 # Propuesta: Motor de scoring propio (sin tokens, rápido, predictivo de verdad)
 
+> Este documento quedó integrado como parte del roadmap más amplio de plataforma. Ver `NICHEPULSE_PLATFORM_STRATEGY.md` para el mapa completo — `niche_outcomes` (definido aquí) es la pieza de datos que alimenta el Tier 2 de ese documento (Predictive Score, Opportunity Score 2.0, Global Market Index).
+
 **Estado: decisiones confirmadas por el CEO (ver sección 6) — Fase 1 (captura de resultados reales) YA EJECUTADA. El motor de IA sigue funcionando exactamente igual mientras tanto; esta fase no lo toca en absoluto, solo empieza a acumular el dato sin el cual ningún motor propio sería de verdad predictivo.**
 
 ## Fase 1 — Ejecutada

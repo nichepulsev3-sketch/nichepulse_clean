@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { searchNiches } from '@/lib/ai'
+import { recordNicheAnalysis } from '@/lib/services/nicheGraph'
 import { sendEmail, opportunityAlertEmail } from '@/lib/email'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logger'
@@ -150,6 +151,17 @@ export async function POST(req: NextRequest) {
         const geo = target.geo || 'US'
         const fresh = await withRetry(() => searchNiches(target.query, {}, plan, geo))
         const previous: any[] = Array.isArray(target.results) ? target.results : []
+
+        // Niche Intelligence Graph (Fase 3, ver NICHEPULSE_PLATFORM_STRATEGY.md):
+        // este cron es el único punto del sistema que re-analiza el MISMO
+        // nicho día tras día — es exactamente lo que necesita
+        // niche_score_history para dejar de ser un snapshot único y
+        // convertirse en una serie temporal real (la base del futuro
+        // Timeline, Fase 10). Best-effort, nunca bloquea ni puede tumbar
+        // esta ejecución del cron.
+        Promise.all(
+          fresh.map((card: any) => recordNicheAnalysis(db, { userId: target.user_id, card, geo }))
+        ).catch(() => {})
 
         for (const freshNiche of fresh) {
           const prevNiche = previous.find((p: any) => p?.name === freshNiche.name)

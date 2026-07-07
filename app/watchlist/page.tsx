@@ -1,12 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase'
+import { recordInteraction } from '@/lib/services/nicheGraph'
 import { VERDICT_META } from '@/lib/types'
 import type { Verdict } from '@/lib/types'
 import SkeletonCard from '@/components/SkeletonCard'
 import SubPageNav from '@/components/SubPageNav'
 import EmptyState from '@/components/EmptyState'
 import { ListRow, ScoreDeleteAction } from '@/components/ListItem'
+import ScoreGrid from '@/components/ScoreGrid'
 
 interface WatchRow {
   id: string
@@ -20,8 +22,9 @@ interface WatchRow {
 }
 
 export default function WatchlistPage() {
-  const [rows,    setRows]    = useState<WatchRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [rows,     setRows]     = useState<WatchRow[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const supabase = getSupabaseBrowser()
 
   useEffect(() => {
@@ -40,8 +43,13 @@ export default function WatchlistPage() {
   }
 
   async function remove(id: string) {
+    const row = rows.find(r => r.id === id)
     await supabase.from('watchlist').delete().eq('id', id)
     setRows(r => r.filter(x => x.id !== id))
+    if (row) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) recordInteraction(supabase, { userId: user.id, nicheName: row.niche_name, type: 'watchlist_remove', geo: row.geo })
+    }
   }
 
   return (
@@ -67,30 +75,42 @@ export default function WatchlistPage() {
           <div style={{ display: 'grid', gap: 10 }}>
             {rows.map(row => {
               const meta = row.last_verdict ? VERDICT_META[row.last_verdict] : null
+              const isOpen = expanded === row.id
+              const hasScores = !!row.niche_data?.scores
               return (
-                <ListRow key={row.id}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '.92rem' }}>{row.niche_name}</span>
-                      {meta && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, background: meta.bg, border: `1px solid ${meta.color}40`, borderRadius: 8, padding: '2px 7px' }}>
-                          {meta.icon} {meta.label}
-                        </span>
-                      )}
+                <div key={row.id}>
+                  <ListRow>
+                    <div style={{ flex: 1, cursor: hasScores ? 'pointer' : 'default' }} onClick={() => hasScores && setExpanded(isOpen ? null : row.id)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '.92rem' }}>{row.niche_name}</span>
+                        {meta && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, background: meta.bg, border: `1px solid ${meta.color}40`, borderRadius: 8, padding: '2px 7px' }}>
+                            {meta.icon} {meta.label}
+                          </span>
+                        )}
+                        {hasScores && (
+                          <span style={{ fontSize: 11, color: 'var(--brand)' }}>{isOpen ? '▲ ocultar por qué' : '▼ ver por qué'}</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--txt-3)', flexWrap: 'wrap' }}>
+                        <span>🔍 "{row.query}"</span>
+                        <span>🌍 {row.geo}</span>
+                        <span>📅 vigilando desde {new Date(row.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 10, fontSize: 12, color: 'var(--txt-3)', flexWrap: 'wrap' }}>
-                      <span>🔍 "{row.query}"</span>
-                      <span>🌍 {row.geo}</span>
-                      <span>📅 vigilando desde {new Date(row.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+                    <ScoreDeleteAction
+                      score={row.last_score ?? 0}
+                      display={row.last_score ?? '—'}
+                      onDelete={() => remove(row.id)}
+                      deleteTitle="Dejar de vigilar"
+                    />
+                  </ListRow>
+                  {isOpen && hasScores && (
+                    <div style={{ marginTop: 8, padding: '10px 4px' }}>
+                      <ScoreGrid scores={row.niche_data.scores} compact />
                     </div>
-                  </div>
-                  <ScoreDeleteAction
-                    score={row.last_score ?? 0}
-                    display={row.last_score ?? '—'}
-                    onDelete={() => remove(row.id)}
-                    deleteTitle="Dejar de vigilar"
-                  />
-                </ListRow>
+                  )}
+                </div>
               )
             })}
           </div>

@@ -41,8 +41,11 @@ setInterval(() => {
  * sesión igual que el resto de páginas con datos personales. '/admin' se
  * añadió con el panel de monitoreo del Motor propio: requiere sesión Y
  * que el email esté en env.ADMIN_EMAILS (comprobado abajo) — defensa en
- * profundidad, la API /api/admin/* vuelve a comprobarlo por su cuenta. */
-const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist', '/feedback', '/admin']
+ * profundidad, la API /api/admin/* vuelve a comprobarlo por su cuenta.
+ * '/copilot' se añadió con el Copiloto de negocio (Fase 11,
+ * NICHEPULSE_PLATFORM_STRATEGY.md): requiere sesión igual que watchlist;
+ * la restricción de plan (Pro/Agency) la aplica /api/copilot, no aquí. */
+const PROTECTED_ROUTES = ['/dashboard', '/radar', '/favorites', '/watchlist', '/feedback', '/admin', '/copilot']
 const ADMIN_ROUTES     = ['/admin']
 const AUTH_ROUTES      = ['/auth/login', '/auth/register']
 
@@ -140,6 +143,7 @@ export const config = {
     '/watchlist/:path*',
     '/feedback/:path*',
     '/admin/:path*',
+    '/copilot/:path*',
     '/auth/:path*',
     '/api/:path*',
   ],

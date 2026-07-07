@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { searchNiches } from '@/lib/ai'
+import { recordNicheAnalysis } from '@/lib/services/nicheGraph'
 import { createLogger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -70,7 +71,19 @@ export async function POST(req: NextRequest) {
     // 6. Guardar búsqueda en el historial (no bloqueante para la respuesta)
     //    geo se guarda para que el cron del Feed de oportunidades pueda
     //    reproducir la misma búsqueda en el mismo país al re-analizarla.
-    await db.from('niche_searches').insert({ user_id: user.id, query, filters, results, geo: geo.toUpperCase() })
+    const { data: savedSearch } = await db.from('niche_searches')
+      .insert({ user_id: user.id, query, filters, results, geo: geo.toUpperCase() })
+      .select('id').single()
+
+    // 6b. Niche Intelligence Graph (Fase 1, ver NICHEPULSE_PLATFORM_STRATEGY.md):
+    //     cada nicho analizado enriquece el grafo propio en vez de quedarse
+    //     solo como un JSON aislado en niche_searches. Best-effort explícito:
+    //     no debe bloquear ni poder romper la respuesta de búsqueda.
+    Promise.all(
+      (results ?? []).map((card: any) =>
+        recordNicheAnalysis(db, { userId: user.id, card, geo: geo.toUpperCase(), sourceSearchId: savedSearch?.id })
+      )
+    ).catch(() => { /* recordNicheAnalysis ya loguea sus propios errores; esto es un cinturón extra */ })
 
     return NextResponse.json({ results, searches_used: quota.used, plan: profile.plan })
 

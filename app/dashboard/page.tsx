@@ -9,6 +9,7 @@ import VerdictBadge from '@/components/VerdictBadge'
 import CeoMode from '@/components/CeoMode'
 import CompareModal from '@/components/CompareModal'
 import OpportunityFeedBell from '@/components/OpportunityFeedBell'
+import { recordInteraction } from '@/lib/services/nicheGraph'
 import { createLogger } from '@/lib/logger'
 
 const log = createLogger('dashboard')
@@ -314,6 +315,9 @@ export default function Dashboard() {
     setSavedNiches(s=>new Set(s).add(key))
     const{error}=await supabase.from('favorites').insert({user_id:user.id,niche_data:niche})
     if(error){ setSavedNiches(s=>{const n=new Set(s);n.delete(key);return n}); log.error('Error guardando favorito', { error: error.message }) }
+    // Niche Intelligence Graph (Fase 1b, ver NICHEPULSE_PLATFORM_STRATEGY.md):
+    // best-effort, nunca debe bloquear ni afectar el guardado real del favorito.
+    else recordInteraction(supabase, { userId: user.id, nicheName: niche.name, type: 'favorite_add', geo })
   }
 
   async function watchNiche(niche:NicheResult){
@@ -327,6 +331,7 @@ export default function Dashboard() {
       niche_data:niche,
     },{onConflict:'user_id,niche_name'})
     if(error){ setWatchedNiches(s=>{const n=new Set(s);n.delete(key);return n}); log.error('Error guardando en watchlist', { error: error.message }) }
+    else recordInteraction(supabase, { userId: user.id, nicheName: niche.name, type: 'watchlist_add', geo })
   }
 
   async function handleManageBilling(){
@@ -447,6 +452,12 @@ export default function Dashboard() {
             <Link href="/watchlist" title="Mi watchlist"
               style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
               {isMobile?'👁':'👁 Watchlist'}
+            </Link>
+          )}
+          {profileLoaded&&isPro&&(
+            <Link href="/copilot" title="Copiloto de negocio"
+              style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(244,113,181,0.3)',background:'rgba(244,113,181,0.08)',color:'var(--pink)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+              {isMobile?'🧭':'🧭 Copiloto'}
             </Link>
           )}
           <a href="/download" title="Descargar app"

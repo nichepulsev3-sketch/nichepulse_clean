@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { generateActionPlan } from '@/lib/ai'
+import { recordInteraction } from '@/lib/services/nicheGraph'
 import { createLogger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest) {
 
     const investNiches = niches.filter((n: any) => n.verdict === 'invertir')
     const actionPlan = await generateActionPlan(investNiches, profile.plan)
+
+    // Niche Intelligence Graph (Fase 1b): un informe ejecutivo es una señal
+    // fuerte de interés real en un nicho — más que solo verlo en pantalla.
+    // Best-effort, no bloquea la respuesta del informe.
+    Promise.all(
+      investNiches.map((n: any) => recordInteraction(db, { userId: user.id, nicheName: n.name, type: 'export' }))
+    ).catch(() => {})
 
     return NextResponse.json({ actionPlan })
 

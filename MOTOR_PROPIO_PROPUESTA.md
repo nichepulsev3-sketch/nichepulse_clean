@@ -105,6 +105,18 @@ No hay atajo honesto que salte estos pasos — la parte "rápida y sin tokens" s
 
 **Actualización:** el CEO confirmó "sí, constrúyelo ya" — Camino A ejecutado (ver sección "Camino A — Ejecutado" arriba), disponible para todos los planes sin restricción.
 
+## 7bis. Fallback automático cuando la IA se queda sin crédito
+
+Motivado por un caso real: Anthropic y OpenAI se quedaron sin crédito a la vez y el buscador normal (✦ Analizar) empezó a devolver error a todos los usuarios. Antes de esto, el motor rápido (Camino A) existía pero era un botón aparte — había que pulsarlo a mano.
+
+Ahora está conectado como red de seguridad automática:
+
+- **`lib/ai.ts`** — los 4 casos en los que `searchNiches()` ya sabía que el fallo era "la IA no puede responder" (401 clave inválida, 429 límite, 402/crédito agotado, timeout de proveedor) ahora marcan el error con `code:'ai_unavailable'`. El resto de errores (un bug real, una respuesta inesperada) NO llevan este code a propósito — ahí lo honesto sigue siendo mostrar el error, no esconderlo detrás de un fallback silencioso.
+- **`app/api/search-niches/route.ts`** — si el error trae `code:'ai_unavailable'`, responde 503 con ese code (antes: 500 genérico). La cuota de búsqueda ya se devolvía automáticamente en caso de fallo (código preexistente, `refund_search_usage`), así que esto no cambia: un intento fallido nunca le cuesta cuota al usuario.
+- **`app/dashboard/page.tsx`** — al recibir `code:'ai_unavailable'`, `runSearch()` ya no se limita a mostrar un error: llama automáticamente a `/api/search-preview` (el mismo endpoint de "⚡ Vista rápida") con la misma consulta, y muestra el resultado en la tarjeta ya existente. El aviso se pinta en ámbar, no en rojo, con el texto "El análisis con IA no está disponible ahora mismo (...). Te mostramos una vista rápida sin IA basada en tendencias en tiempo real mientras tanto."
+
+**Límite honesto de este fallback:** el motor rápido no sustituye al análisis completo — no genera executive summary, SWOT, proveedores ni el resto de campos que solo la IA puede razonar. Si la consulta no coincide con ninguna señal en vivo de trends.ts, seguirá diciendo "sin datos" en vez de inventar algo. El objetivo no es igualar la calidad del análisis con IA, es que la app nunca se quede completamente muda cuando la IA no puede responder.
+
 ## 7. Cierre del hueco: el uso de Free también alimenta el aprendizaje
 
 Hasta esta actualización, la Vista rápida (Camino A) no dejaba ningún rastro en el Niche Intelligence Graph — cualquier usuario podía usarla, pero ese uso no se traducía en dato acumulado. Se cerró así:

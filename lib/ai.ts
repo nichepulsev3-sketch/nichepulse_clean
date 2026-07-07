@@ -519,10 +519,24 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
       // sin tener que reproducirlo a ciegas.
       log.error('Motor Multi-IA: el reintento con Claude también falló', { error: err?.message ?? String(err) })
       const msg = err?.message ?? ''
-      if (msg.includes('401')) throw new Error('ANTHROPIC_API_KEY inválida. Compruébala en Railway → Variables.')
-      if (msg.includes('429')) throw new Error('Límite de IA alcanzado. Espera 1 minuto.')
-      if (msg.includes('402') || msg.includes('credit')) throw new Error('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
-      if (msg.includes('timeout')) throw new Error(`El motor de IA tardó demasiado en responder (${msg}). Puede ser un problema temporal de conexión con Anthropic — inténtalo de nuevo en un minuto.`)
+      // code:'ai_unavailable' marca los casos en los que el problema NO es un bug
+      // sino que la IA (Claude/OpenAI) genuinamente no puede responder ahora mismo
+      // (clave inválida, sin crédito, límite de uso, o timeout de proveedor). La
+      // capa de arriba (app/api/search-niches/route.ts) usa este code, no el
+      // texto del mensaje, para decidir si ofrecer el fallback automático al
+      // motor rápido sin IA (Camino A, ver MOTOR_PROPIO_PROPUESTA.md). El resto
+      // de errores (bug real, respuesta inesperada) NO llevan este code a
+      // propósito: ahí lo honesto es mostrar el error, no ocultarlo con un
+      // fallback silencioso.
+      const unavailable = (message: string) => {
+        const e = new Error(message)
+        ;(e as any).code = 'ai_unavailable'
+        return e
+      }
+      if (msg.includes('401')) throw unavailable('ANTHROPIC_API_KEY inválida. Compruébala en Railway → Variables.')
+      if (msg.includes('429')) throw unavailable('Límite de IA alcanzado. Espera 1 minuto.')
+      if (msg.includes('402') || msg.includes('credit')) throw unavailable('Sin crédito en Anthropic. Ve a console.anthropic.com → Billing.')
+      if (msg.includes('timeout')) throw unavailable(`El motor de IA tardó demasiado en responder (${msg}). Puede ser un problema temporal de conexión con Anthropic — inténtalo de nuevo en un minuto.`)
       throw new Error(`Error en el motor Multi-IA: ${msg || 'desconocido'}. Inténtalo de nuevo.`)
     }
   }

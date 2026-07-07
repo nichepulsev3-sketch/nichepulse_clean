@@ -257,6 +257,11 @@ export default function Dashboard() {
   // con IA: nunca puede interferir con `results`/`loading`/`error`.
   const [fastPreview,        setFastPreview]        = useState<any>(null)
   const [fastPreviewLoading, setFastPreviewLoading] = useState(false)
+  // true cuando el último intento de búsqueda con IA falló específicamente
+  // por falta de crédito/clave inválida/límite (code:'ai_unavailable' desde
+  // lib/ai.ts) — distingue "la IA no puede responder ahora" de un error real,
+  // para mostrar un aviso informativo en vez de un error rojo genérico.
+  const [aiUnavailable,      setAiUnavailable]      = useState(false)
   const [selected,     setSelected]     = useState<NicheResult|null>(null)
   const [tab,          setTab]          = useState<Tab>('search')
   const [history,      setHistory]      = useState<{query:string;results:NicheResult[];created_at:string}[]>([])
@@ -368,12 +373,30 @@ export default function Dashboard() {
   const runSearch=useCallback(async(override?:string)=>{
     const q=override??query; if(!q.trim()||loading)return
     if(override)setQuery(override); lastQuery.current=q
-    setLoading(true);setError('');setResults([])
+    setLoading(true);setError('');setAiUnavailable(false);setResults([])
     try{
       const{data:{session}}=await supabase.auth.getSession()
       const res=await fetch('/api/search-niches',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token}`},body:JSON.stringify({query:q,filters,geo})})
       const json=await res.json()
-      if(!res.ok){setError(json.error??'Error al buscar');return}
+      if(!res.ok){
+        if(json.code==='ai_unavailable'){
+          // Fallback automático al motor propio (Camino A, sin IA): la IA no
+          // puede responder ahora mismo (sin crédito/clave inválida/límite),
+          // así que en vez de un error seco mostramos lo que sí sabemos con
+          // datos reales de tendencias, mismo mecanismo que "⚡ Vista rápida"
+          // pero disparado solo. Ver MOTOR_PROPIO_PROPUESTA.md.
+          setAiUnavailable(true)
+          setError(`El análisis con IA no está disponible ahora mismo (${json.error??'sin crédito'}). Te mostramos una vista rápida sin IA basada en tendencias en tiempo real mientras tanto.`)
+          try{
+            const res2=await fetch('/api/search-preview',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token}`},body:JSON.stringify({query:q,geo})})
+            const json2=await res2.json()
+            if(res2.ok)setFastPreview(json2)
+          }catch{ /* el fallback nunca debe tapar el aviso de arriba */ }
+        }else{
+          setError(json.error??'Error al buscar')
+        }
+        return
+      }
       setResults(json.results)
       if(session?.user?.id)await loadProfile(session.user.id)
     }catch{setError('Error de conexión.')}
@@ -617,11 +640,11 @@ export default function Dashboard() {
             {isMobile&&<button onClick={()=>setShowTrends(v=>!v)} style={{width:'100%',padding:'9px',borderRadius:10,fontSize:13,cursor:'pointer',border:'1px solid rgba(0,229,195,0.25)',background:'rgba(0,229,195,0.05)',color:'var(--acc3)',fontFamily:'var(--font-body)',marginBottom:'1rem',fontWeight:500}}>📡 {showTrends?'Ocultar':'Ver'} señales en vivo</button>}
             {isMobile&&showTrends&&<div style={{marginBottom:'1rem'}}><TrendsPanel geo={geo} onKeywordClick={kw=>runSearch(kw)}/></div>}
 
-            {/* Error */}
+            {/* Error / aviso de IA no disponible (fallback a Camino A) */}
             {error&&(
-              <div style={{background:'rgba(255,60,104,0.1)',border:'1px solid rgba(255,107,157,0.3)',borderRadius:10,padding:'10px 14px',marginBottom:'1.25rem',fontSize:13,color:'#ff9dc0',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-                <span>{error}</span>
-                <button onClick={()=>runSearch(lastQuery.current||query)} style={{background:'var(--g1)',color:'#fff',border:'none',padding:'5px 12px',borderRadius:8,fontSize:12,cursor:'pointer',fontFamily:'var(--font-body)',fontWeight:600}}>Reintentar</button>
+              <div style={{background:aiUnavailable?'rgba(251,191,36,0.1)':'rgba(255,60,104,0.1)',border:`1px solid ${aiUnavailable?'rgba(251,191,36,0.35)':'rgba(255,107,157,0.3)'}`,borderRadius:10,padding:'10px 14px',marginBottom:'1.25rem',fontSize:13,color:aiUnavailable?'#fbbf24':'#ff9dc0',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                <span>{aiUnavailable?'⚡ ':''}{error}</span>
+                <button onClick={()=>runSearch(lastQuery.current||query)} style={{background:'var(--g1)',color:'#fff',border:'none',padding:'5px 12px',borderRadius:8,fontSize:12,cursor:'pointer',fontFamily:'var(--font-body)',fontWeight:600,flexShrink:0}}>Reintentar</button>
               </div>
             )}
 

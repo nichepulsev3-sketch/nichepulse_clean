@@ -90,6 +90,14 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     log.error('Error en búsqueda de nichos', { error: err?.message ?? String(err) })
     if (err?.name === 'ZodError') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+    // code:'ai_unavailable' (ver lib/ai.ts): Claude/OpenAI no pueden responder
+    // ahora mismo (sin crédito, clave inválida, límite de uso). Se distingue
+    // con un status propio (503, no 500) y se propaga el code para que el
+    // frontend pueda ofrecer el fallback automático al motor rápido sin IA
+    // (Camino A) en vez de solo mostrar un error genérico.
+    if (err?.code === 'ai_unavailable') {
+      return NextResponse.json({ error: err.message, code: 'ai_unavailable' }, { status: 503 })
+    }
     return NextResponse.json({ error: err?.message ?? 'Error interno' }, { status: 500 })
   }
 }

@@ -899,12 +899,20 @@ export default function Dashboard() {
       {tab==='plans'&&<PlansTab onUpgrade={handleUpgrade} onManageBilling={handleManageBilling} billingLoading={billingLoading} currentPlan={profile?.plan??'free'}/>}
 
       {/* MODAL — info básica + links */}
+      {/* Estructura: overlay centrado (ya no hace scroll él mismo) → caja del
+          modal con alto acotado (antes 'none' en desktop, por eso el
+          contenido largo del Motor de Inteligencia empujaba la cabecera
+          fuera de la pantalla sin forma de volver a ella) → dentro, cabecera
+          fija (nombre/score/favorito/cerrar, siempre visible) + cuerpo con
+          su propio scroll interno. Así el botón de cerrar nunca deja de
+          verse ni de poder pulsarse, en web y en móvil. */}
       {selected&&(
         <div onClick={()=>setSelected(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:200,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',padding:isMobile?0:'1.5rem',overflowY:'auto',backdropFilter:'blur(4px)'}}>
           <div onClick={e=>e.stopPropagation()}
-            className={isMobile?'np-modal-sheet':''} style={{width:'100%',maxWidth:isMobile?'100%':480,background:'var(--c2)',border:'1px solid rgba(124,111,255,0.25)',padding:'1.5rem',borderRadius:isMobile?'20px 20px 0 0':'20px',maxHeight:isMobile?'88vh':'none',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
+            className={isMobile?'np-modal-sheet':''} style={{width:'100%',maxWidth:isMobile?'100%':480,background:'var(--c2)',border:'1px solid rgba(124,111,255,0.25)',borderRadius:isMobile?'20px 20px 0 0':'20px',maxHeight:isMobile?'88vh':'85vh',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,0.5)',display:'flex',flexDirection:'column'}}>
 
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
+            {/* Cabecera fija — nunca se va con el scroll */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'1.25rem 1.5rem 1rem',flexShrink:0,borderBottom:'1px solid rgba(255,255,255,0.06)',background:'var(--c2)',borderRadius:isMobile?'20px 20px 0 0':'20px 20px 0 0'}}>
               <div>
                 <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:'1rem'}}>{selected.name}</div>
                 {isAgency&&<div style={{fontSize:11,color:'#ff9900',marginTop:2,fontWeight:600}}>🏆 Análisis expert</div>}
@@ -922,6 +930,9 @@ export default function Dashboard() {
                 <button onClick={()=>setSelected(null)} style={{background:'var(--c3)',border:'none',color:'var(--t1)',width:32,height:32,borderRadius:'50%',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
               </div>
             </div>
+
+            {/* Cuerpo — todo lo demás, con scroll propio e independiente de la cabecera */}
+            <div style={{overflowY:'auto',padding:'1rem 1.5rem 1.5rem'}}>
 
             {/* Veredicto — qué hacer con este nicho, antes que ningún otro dato */}
             <VerdictBadge verdict={selected.verdict} reason={selected.verdict_reason} size="lg" />
@@ -1025,6 +1036,7 @@ export default function Dashboard() {
                 ✦ Subir a Pro — $19/mes
               </button>
             )}
+            </div>
           </div>
         </div>
       )}

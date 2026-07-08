@@ -15,6 +15,27 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)]
 }
 
+// La fuente 'helvetica' que usa jsPDF por defecto solo soporta WinAnsi
+// (básicamente Latin-1: incluye tildes, ñ, ¿, ¡... pero NO emoji). Cuando
+// se le pide dibujar un emoji (🎯, 💡, ⚠️...) con esa fuente, jsPDF no
+// sabe codificarlo y el resultado es el texto corrupto tipo "Ø<ß¯" que
+// se ve en los PDFs generados — no es un bug de guardado de archivo como
+// los que ya tuvimos en otros sitios del proyecto, es que la fuente
+// estándar del PDF no tiene esos glifos. La solución segura es quitar
+// cualquier carácter fuera del rango Latin-1 antes de imprimir texto,
+// dejando intactos los acentos y la ñ (sí soportados) — se aplica de
+// forma centralizada vía el helper `text()` de cada función de PDF, así
+// que cubre tanto los títulos con emoji hardcodeados como cualquier
+// emoji que pueda colarse en texto generado por la IA.
+function stripEmoji(input: string): string {
+  let out = ''
+  for (const ch of Array.from(String(input ?? ''))) {
+    const code = ch.codePointAt(0) ?? 0
+    if (code <= 0x00ff) out += ch
+  }
+  return out.replace(/\s{2,}/g, ' ').trim()
+}
+
 // Importación dinámica para evitar SSR issues
 async function getJsPDF() {
   const { jsPDF } = await import('jspdf')
@@ -50,6 +71,9 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     doc.setFont('helvetica', style)
     doc.setTextColor(color[0],color[1],color[2])
   }
+  // Envuelve doc.text() para quitar emoji antes de imprimir (ver stripEmoji
+  // más arriba) — la fuente helvetica no los soporta y salían corruptos.
+  function text(str: string, x: number, y: number, opts?: any) { doc.text(stripEmoji(str), x, y, opts) }
   function newPage() { doc.addPage(); Y = MARGIN }
   function checkY(needed=20) { if (Y + needed > 270) newPage() }
   function wrap(text: string, maxW: number, size=10): string[] {
@@ -66,24 +90,24 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
 
   // Etiqueta plan
   setFont(7,'bold', WHITE)
-  doc.text(`NICHEPULSE · ${isAgency ? 'AGENCY EXPERT' : 'PRO'} · Multi-motor de IA`, MARGIN + 4, Y + 6)
+  text(`NICHEPULSE · ${isAgency ? 'AGENCY EXPERT' : 'PRO'} · Multi-motor de IA`, MARGIN + 4, Y + 6)
 
   // Nombre del nicho
   setFont(14, 'bold', WHITE)
   const nameLines = wrap(niche.name, CW - 25, 14)
-  nameLines.slice(0,2).forEach((line, i) => doc.text(line, MARGIN + 4, Y + 15 + i * 7))
+  nameLines.slice(0,2).forEach((line, i) => text(line, MARGIN + 4, Y + 15 + i * 7))
 
   // Moneda
   setFont(8, 'normal', [200, 240, 255])
-  doc.text(`${currency} · ${niche.competition} competencia · ${niche.trend}`, MARGIN + 4, Y + 30)
+  text(`${currency} · ${niche.competition} competencia · ${niche.trend}`, MARGIN + 4, Y + 30)
 
   // Score círculo
   setFill(WHITE)
   doc.circle(MARGIN + CW - 14, Y + 19, 11, 'F')
   setFont(14, 'bold', accentR)
-  doc.text(String(niche.opportunity_score ?? niche.profit_score ?? 0), MARGIN + CW - 18, Y + 22)
+  text(String(niche.opportunity_score ?? niche.profit_score ?? 0), MARGIN + CW - 18, Y + 22)
   setFont(6, 'normal', GRAY)
-  doc.text('Score', MARGIN + CW - 18.5, Y + 27)
+  text('Score', MARGIN + CW - 18.5, Y + 27)
 
   Y += headerH + 6
 
@@ -99,9 +123,9 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     const x = MARGIN + i * (mW + 2)
     setFill(LIGHT); doc.roundedRect(x, Y, mW, 14, 2, 2, 'F')
     setFont(9, 'bold', accentR)
-    doc.text(value, x + mW / 2, Y + 6, { align: 'center' })
+    text(value, x + mW / 2, Y + 6, { align: 'center' })
     setFont(7, 'normal', GRAY)
-    doc.text(label, x + mW / 2, Y + 11, { align: 'center' })
+    text(label, x + mW / 2, Y + 11, { align: 'center' })
   })
   Y += 20
 
@@ -112,7 +136,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     const x  = MARGIN + i * (tw + 2)
     if (x + tw > MARGIN + CW - 20) return
     setFill(LIGHT); doc.roundedRect(x, Y, tw, 5, 1, 1, 'F')
-    doc.text(tag, x + 2, Y + 3.5)
+    text(tag, x + 2, Y + 3.5)
   })
   Y += 10
 
@@ -122,21 +146,21 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     setFill(color)
     doc.rect(MARGIN, Y, 2.5, 8, 'F')
     setFont(9, 'bold', color)
-    doc.text(title.toUpperCase(), MARGIN + 5, Y + 6)
+    text(title.toUpperCase(), MARGIN + 5, Y + 6)
     setDraw([220, 220, 240])
     doc.setLineWidth(0.2)
     doc.line(MARGIN + 5 + doc.getTextWidth(title.toUpperCase()) + 2, Y + 4, MARGIN + CW, Y + 4)
     Y += 10
   }
 
-  function bulletItem(text: string, color = accentR, prefix = '•') {
-    const lines = wrap(text, CW - 10)
+  function bulletItem(body: string, color = accentR, prefix = '•') {
+    const lines = wrap(body, CW - 10)
     const blockH = lines.length * 4.5 + 4
     checkY(blockH + 2)
     setFill(LIGHT); doc.roundedRect(MARGIN, Y, CW, blockH, 1.5, 1.5, 'F')
     setFill(color); doc.rect(MARGIN, Y, 2, blockH, 'F')
     setFont(8, 'normal', DARK)
-    lines.forEach((line, li) => doc.text(line, MARGIN + 5, Y + 4.5 + li * 4.5))
+    lines.forEach((line, li) => text(line, MARGIN + 5, Y + 4.5 + li * 4.5))
     Y += blockH + 2
   }
 
@@ -152,7 +176,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     setFill(LIGHT); doc.roundedRect(MARGIN, Y, CW, h, 2, 2, 'F')
     setDraw(vColor); doc.setLineWidth(0.6); doc.rect(MARGIN, Y, CW, h, 'S')
     setFont(9, 'bold', vColor)
-    lines.forEach((l, i) => doc.text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
+    lines.forEach((l, i) => text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
     Y += h + 5
   }
 
@@ -179,7 +203,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
       setFill([255, 248, 230]); doc.roundedRect(MARGIN, Y, CW, h, 2, 2, 'F')
       setDraw(ORANGE); doc.setLineWidth(0.6); doc.rect(MARGIN, Y, CW, h, 'S')
       setFont(8, 'bold', DARK)
-      lines.forEach((l, i) => doc.text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
+      lines.forEach((l, i) => text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
       Y += h + 5
     }
     if (niche.validated_roi) {
@@ -198,7 +222,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bolditalic')
     doc.setTextColor(PURPLE[0], PURPLE[1], PURPLE[2])
-    lines.forEach((l, i) => doc.text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
+    lines.forEach((l, i) => text(l, MARGIN + 4, Y + 5.5 + i * 4.5))
     doc.setFont('helvetica', 'normal')
     Y += h + 5
   }
@@ -230,11 +254,11 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
   niche.suppliers.forEach(s => {
     checkY(10)
     setFill(LIGHT); doc.roundedRect(MARGIN, Y, CW, 9, 1.5, 1.5, 'F')
-    setFont(8, 'bold', DARK);  doc.text(s.name, MARGIN + 4, Y + 5.5)
-    setFont(7, 'normal', GRAY); doc.text(s.note, MARGIN + 4 + doc.getTextWidth(s.name) + 4, Y + 5.5)
+    setFont(8, 'bold', DARK);  text(s.name, MARGIN + 4, Y + 5.5)
+    setFont(7, 'normal', GRAY); text(s.note, MARGIN + 4 + doc.getTextWidth(s.name) + 4, Y + 5.5)
     setFont(7, 'bold', accentR)
     const link = s.name.toLowerCase().includes('aliexpress') ? `aliexpress.com/wholesale?SearchText=${encodeURIComponent(niche.keywords[0]??niche.name)}` : s.name.toLowerCase().includes('amazon') ? `amazon.com/s?k=${encodeURIComponent(niche.keywords[0]??niche.name)}` : 'google.com/search'
-    doc.text('Ver →', MARGIN + CW - 14, Y + 5.5)
+    text('Ver →', MARGIN + CW - 14, Y + 5.5)
     Y += 11
   })
 
@@ -254,7 +278,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     checkY(8)
     setFill(LIGHT); doc.roundedRect(kwX, Y, tw, 5.5, 1, 1, 'F')
     setFont(7, 'normal', accentR)
-    doc.text(kw, kwX + 3, Y + 4)
+    text(kw, kwX + 3, Y + 4)
     kwX += tw + 2
   })
   Y += 9
@@ -268,7 +292,7 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     if (kwX + tw > MARGIN + CW) { kwX = MARGIN; Y += 7 }
     setFill(accentR); doc.roundedRect(kwX, Y, tw, 5.5, 1, 1, 'F')
     setFont(7, 'bold', WHITE)
-    doc.text(ch, kwX + 3, Y + 4)
+    text(ch, kwX + 3, Y + 4)
     kwX += tw + 2
   })
   Y += 12
@@ -281,9 +305,9 @@ export async function downloadNichePDF(niche: NicheResult, plan: string, currenc
     setFill([230, 228, 255])
     doc.rect(0, 285, 210, 12, 'F')
     setFont(7, 'normal', GRAY)
-    doc.text(`NichePulse · Multi-motor de IA · ${date} · Moneda: ${currency}`, MARGIN, 291)
+    text(`NichePulse · Multi-motor de IA · ${date} · Moneda: ${currency}`, MARGIN, 291)
     setFont(7, 'bold', accentR)
-    doc.text(`Pág ${i}/${totalPages}`, W - MARGIN, 291, { align: 'right' })
+    text(`Pág ${i}/${totalPages}`, W - MARGIN, 291, { align: 'right' })
   }
 
   // ── Descarga multiplataforma (PC / Android / iOS) ─────────────
@@ -316,25 +340,27 @@ export async function downloadExecutiveReportPDF(
   function setFont(size:number, style:'normal'|'bold'='normal', color=DARK) {
     doc.setFontSize(size); doc.setFont('helvetica', style); doc.setTextColor(color[0],color[1],color[2])
   }
+  // Envuelve doc.text() para quitar emoji antes de imprimir — ver stripEmoji.
+  function text(str: string, x: number, y: number, opts?: any) { doc.text(stripEmoji(str), x, y, opts) }
   function newPage() { doc.addPage(); Y = MARGIN }
   function checkY(needed=20) { if (Y + needed > 270) newPage() }
   function wrap(text: string, maxW: number, size=10): string[] { doc.setFontSize(size); return doc.splitTextToSize(text, maxW) }
   function section(title: string, color = accentR) {
     checkY(16)
     setFill(color); doc.rect(MARGIN, Y, 2.5, 8, 'F')
-    setFont(9, 'bold', color); doc.text(title.toUpperCase(), MARGIN + 5, Y + 6)
+    setFont(9, 'bold', color); text(title.toUpperCase(), MARGIN + 5, Y + 6)
     setDraw([220,220,240]); doc.setLineWidth(0.2)
     doc.line(MARGIN + 5 + doc.getTextWidth(title.toUpperCase()) + 2, Y + 4, MARGIN + CW, Y + 4)
     Y += 10
   }
-  function bulletItem(text: string, color = accentR) {
-    const lines = wrap(text, CW - 10)
+  function bulletItem(body: string, color = accentR) {
+    const lines = wrap(body, CW - 10)
     const blockH = lines.length * 4.5 + 4
     checkY(blockH + 2)
     setFill(LIGHT); doc.roundedRect(MARGIN, Y, CW, blockH, 1.5, 1.5, 'F')
     setFill(color); doc.rect(MARGIN, Y, 2, blockH, 'F')
     setFont(8, 'normal', DARK)
-    lines.forEach((line, li) => doc.text(line, MARGIN + 5, Y + 4.5 + li * 4.5))
+    lines.forEach((line, li) => text(line, MARGIN + 5, Y + 4.5 + li * 4.5))
     Y += blockH + 2
   }
 
@@ -343,12 +369,12 @@ export async function downloadExecutiveReportPDF(
   setFill(accentR); doc.roundedRect(MARGIN, Y, CW, headerH, 4, 4, 'F')
   setFill(isAgency ? ORANGE : PINK); doc.rect(MARGIN + CW - 4, Y, 4, headerH, 'F')
   setFont(7, 'bold', WHITE)
-  doc.text(`NICHEPULSE · INFORME EJECUTIVO · ${isAgency ? 'AGENCY EXPERT' : 'PRO'}`, MARGIN + 4, Y + 6)
+  text(`NICHEPULSE · INFORME EJECUTIVO · ${isAgency ? 'AGENCY EXPERT' : 'PRO'}`, MARGIN + 4, Y + 6)
   setFont(13, 'bold', WHITE)
-  wrap(`Sesión de búsqueda: "${query}"`, CW - 10, 13).slice(0,2).forEach((l,i)=>doc.text(l, MARGIN + 4, Y + 15 + i*7))
+  wrap(`Sesión de búsqueda: "${query}"`, CW - 10, 13).slice(0,2).forEach((l,i)=>text(l, MARGIN + 4, Y + 15 + i*7))
   setFont(8, 'normal', [200,240,255])
   const date = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' })
-  doc.text(`${niches.length} nichos analizados · ${currency} · ${date}`, MARGIN + 4, Y + 29)
+  text(`${niches.length} nichos analizados · ${currency} · ${date}`, MARGIN + 4, Y + 29)
   Y += headerH + 8
 
   // ── RESUMEN EJECUTIVO ─────────────────────────────────────────
@@ -368,11 +394,11 @@ export async function downloadExecutiveReportPDF(
     const vLabel = n.verdict === 'invertir' ? 'INVERTIR' : n.verdict === 'evitar' ? 'EVITAR' : 'ESPERAR'
     setFill(LIGHT); doc.roundedRect(MARGIN, Y, CW, 11, 1.5, 1.5, 'F')
     setFill(vColor); doc.rect(MARGIN, Y, 2, 11, 'F')
-    setFont(8, 'bold', DARK); doc.text(`${i+1}. ${n.name}`, MARGIN + 5, Y + 5)
+    setFont(8, 'bold', DARK); text(`${i+1}. ${n.name}`, MARGIN + 5, Y + 5)
     setFont(7, 'normal', GRAY)
-    wrap(n.verdict_reason || n.conclusion || '', CW - 40, 7).slice(0,1).forEach(l => doc.text(l, MARGIN + 5, Y + 9))
-    setFont(9, 'bold', vColor); doc.text(String(score), MARGIN + CW - 26, Y + 6, { align: 'center' })
-    setFont(6, 'bold', vColor); doc.text(vLabel, MARGIN + CW - 26, Y + 9.5, { align: 'center' })
+    wrap(n.verdict_reason || n.conclusion || '', CW - 40, 7).slice(0,1).forEach(l => text(l, MARGIN + 5, Y + 9))
+    setFont(9, 'bold', vColor); text(String(score), MARGIN + CW - 26, Y + 6, { align: 'center' })
+    setFont(6, 'bold', vColor); text(vLabel, MARGIN + CW - 26, Y + 9.5, { align: 'center' })
     Y += 13
   })
   Y += 4
@@ -393,9 +419,9 @@ export async function downloadExecutiveReportPDF(
     doc.setPage(i)
     setFill([230,228,255]); doc.rect(0, 285, 210, 12, 'F')
     setFont(7, 'normal', GRAY)
-    doc.text(`NichePulse · Informe ejecutivo · ${date} · Moneda: ${currency}`, MARGIN, 291)
+    text(`NichePulse · Informe ejecutivo · ${date} · Moneda: ${currency}`, MARGIN, 291)
     setFont(7, 'bold', accentR)
-    doc.text(`Pág ${i}/${totalPages}`, W - MARGIN, 291, { align: 'right' })
+    text(`Pág ${i}/${totalPages}`, W - MARGIN, 291, { align: 'right' })
   }
 
   const filename = `nichepulse-informe-ejecutivo-${query.replace(/\s+/g,'-').toLowerCase().slice(0,30)}.pdf`

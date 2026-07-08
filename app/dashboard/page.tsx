@@ -475,7 +475,7 @@ export default function Dashboard() {
           {profileLoaded&&isPro&&!isAgency&&<span style={{background:'var(--g1)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>PRO</span>}
           {profileLoaded&&isAgency&&<span style={{background:'var(--g2)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>AGENCY</span>}
         </div>
-        <div style={{display:'flex',gap:4,alignItems:'center'}}>
+        <div style={{display:'flex',gap:4,alignItems:'center',minWidth:0,overflowX:isMobile?'auto':'visible',WebkitOverflowScrolling:'touch',flexShrink:1}}>
           {TABS.map(t=>(
             <button key={t.key} onClick={()=>{setTab(t.key);if(t.key==='history')loadHistory(1)}}
               style={{padding:isMobile?'6px 8px':'6px 14px',borderRadius:20,fontSize:isMobile?11:13,cursor:'pointer',border:tab===t.key?'none':'1px solid rgba(124,111,255,0.2)',background:tab===t.key?'var(--g1)':'transparent',color:tab===t.key?'#fff':'var(--t2)',fontFamily:'var(--font-body)',fontWeight:tab===t.key?600:400,boxShadow:tab===t.key?'0 2px 10px rgba(124,111,255,0.35)':'none',transition:'all .2s'}}>

@@ -11,8 +11,8 @@ import { getTrends, buildTrendContext } from './trends'
 import { env } from './env'
 import { createLogger } from './logger'
 import { cache, CACHE_TTL } from './services/cache'
-import { buildContext as buildEngineContext, contextToPromptBlock } from './services/engine/reasoningLayer'
-import type { AIConfidence } from './services/engine/types'
+import { buildContext as buildEngineContext, contextToPromptBlock, detectContradictions } from './services/engine/reasoningLayer'
+import type { AIConfidence, ReasoningContext } from './services/engine/types'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
 
@@ -497,6 +497,7 @@ export async function searchNiches(
   // búsqueda; best-effort total, un fallo aquí jamás debe bloquear nada.
   let engineContext = ''
   let engineConfidence: AIConfidence | null = null
+  let engineCtx: ReasoningContext | null = null
   if (opts?.userId && opts?.db) {
     try {
       const ctx = await Promise.race([
@@ -506,6 +507,7 @@ export async function searchNiches(
       if (ctx) {
         engineContext = contextToPromptBlock(ctx)
         engineConfidence = ctx.confidence
+        engineCtx = ctx
       }
     } catch (err: any) {
       log.error('AI Intelligence Engine: no se pudo reunir contexto propio', { error: err?.message ?? String(err) })
@@ -528,23 +530,41 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
 
   log.info('Motor Multi-IA: iniciando búsqueda', { plan, ias: promises.length, geo })
 
-  // Adjunta el nivel de confianza del motor (Módulo 12) a cada nicho —
-  // aditivo, calculado por NichePulse, nunca pedido ni generado por el
-  // LLM. Si no hubo contexto del motor (búsqueda anónima o sin sesión),
-  // no se añade nada, no se inventa una confianza que no se calculó.
-  const withConfidence = (niches: NicheResult[]): NicheResult[] =>
-    engineConfidence ? niches.map(n => ({ ...n, engine_confidence: engineConfidence! })) : niches
+  // Adjunta confianza (Módulo 12) y explicabilidad de segunda capa
+  // (Módulo 13, ver AUDITORIA_INTELLIGENCE_ENGINE.md Fase 6/10, P0.1-P0.2-P0.3)
+  // a cada nicho — todo aditivo, calculado por NichePulse, nunca pedido
+  // ni generado por el LLM. El paso de contraste (detectContradictions)
+  // es determinístico: compara lo que el LLM acaba de afirmar contra el
+  // histórico que el Knowledge Graph ya tenía ANTES de preguntarle, sin
+  // ninguna llamada adicional a IA. Si no hubo contexto del motor
+  // (búsqueda anónima o sin sesión), no se añade nada de esto — nunca se
+  // inventa una confianza o explicación que no se calculó de verdad.
+  const withEngineMeta = (niches: NicheResult[]): NicheResult[] => {
+    if (!engineConfidence || !engineCtx) return niches
+    return niches.map(n => {
+      const contradictions = detectContradictions(n, engineCtx!)
+      const confidence: AIConfidence = contradictions.length
+        ? { ...engineConfidence!, level: engineConfidence!.level === 'alta' ? 'media' : engineConfidence!.level === 'media' ? 'baja' : engineConfidence!.level,
+            reasoning: `${engineConfidence!.reasoning} Se detectaron ${contradictions.length} contradicción(es) con el histórico propio de NichePulse — revisa el detalle antes de confiar del todo.` }
+        : engineConfidence!
+      return {
+        ...n,
+        engine_confidence: confidence,
+        engine_explanation: { ...engineCtx!.explanation, contradictions },
+      }
+    })
+  }
 
   try {
     const results = await raceAI(promises)
-    const sliced = withConfidence(results.slice(0, maxResults))
+    const sliced = withEngineMeta(results.slice(0, maxResults))
     if (cacheable && !engineContext) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
     return sliced
   } catch {
     log.warn('Motor Multi-IA: reintentando solo con Claude')
     try {
       const retry = await callClaude(cfg.claude, system, userPrompt, cfg.tokens)
-      const sliced = withConfidence(retry.slice(0, maxResults))
+      const sliced = withEngineMeta(retry.slice(0, maxResults))
       if (cacheable && !engineContext) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
       return sliced
     } catch (err: any) {

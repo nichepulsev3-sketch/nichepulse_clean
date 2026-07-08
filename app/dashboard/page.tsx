@@ -957,6 +957,45 @@ export default function Dashboard() {
               <span style={{fontSize:11,padding:'3px 8px',borderRadius:8,background:'rgba(0,229,195,0.1)',color:'var(--acc3)',border:'0.5px solid rgba(0,229,195,0.3)',fontWeight:600}}>{currency}</span>
             </div>
 
+            {/* Explicabilidad del motor propio (AUDITORIA_INTELLIGENCE_ENGINE.md
+                Fase 6/10, P0.2): antes esta información se calculaba pero se
+                descartaba tras convertirse en texto de prompt para el LLM —
+                nunca llegaba hasta aquí. Se muestra solo si el motor propio
+                pudo reunir contexto para esta búsqueda (ver lib/ai.ts). */}
+            {selected.engine_confidence && (()=>{
+              const c = selected.engine_confidence!
+              const exp = selected.engine_explanation
+              const LEVEL_COLOR: Record<string,string> = {sin_datos:'var(--t3)',baja:'#fbbf24',media:'#7c6fff',alta:'#2dd4bf'}
+              const LEVEL_LABEL: Record<string,string> = {sin_datos:'Sin datos propios',baja:'Confianza baja',media:'Confianza media',alta:'Confianza alta'}
+              const hasContradictions = !!exp?.contradictions?.length
+              return (
+                <div style={{marginBottom:'1rem',background:'var(--c3)',border:`1px solid ${hasContradictions?'rgba(251,191,36,0.4)':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:'10px 12px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+                    <span style={{width:7,height:7,borderRadius:'50%',background:LEVEL_COLOR[c.level],display:'inline-block'}}/>
+                    <span style={{fontSize:12,fontWeight:700,color:LEVEL_COLOR[c.level]}}>🧠 {LEVEL_LABEL[c.level]}</span>
+                    {typeof c.coverage==='number'&&<span style={{fontSize:11,color:'var(--t3)'}}>· Cobertura de datos propios: {c.coverage}%</span>}
+                    {c.dataQuality!=null&&<span style={{fontSize:11,color:'var(--t3)'}}>· Consistencia del histórico: {c.dataQuality}%</span>}
+                  </div>
+                  <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5}}>{c.reasoning}</div>
+                  {hasContradictions&&(
+                    <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(251,191,36,0.25)'}}>
+                      {exp!.contradictions.map((ct,i)=>(
+                        <div key={i} style={{fontSize:12,color:'#fbbf24',display:'flex',gap:6,marginBottom:4}}>
+                          <span style={{flexShrink:0}}>⚠️</span><span>{ct}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {exp&&(exp.usedSources.length>0||exp.missingSources.length>0)&&(
+                    <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.06)',fontSize:11,color:'var(--t3)',lineHeight:1.6}}>
+                      {exp.usedSources.length>0&&<div>✓ Usado: {exp.usedSources.join(' · ')}</div>}
+                      {exp.missingSources.length>0&&<div style={{marginTop:2}}>✕ No disponible: {exp.missingSources.join(' · ')}</div>}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {/* Motor de Inteligencia — 12 scores explicados (Pro/Agency) */}
             {isPro ? (
               <div style={{marginBottom:'1rem'}}>

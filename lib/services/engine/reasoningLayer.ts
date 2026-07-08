@@ -20,8 +20,8 @@ import { getKnownNiche, getRelatedNiches } from '@/lib/services/nicheGraph'
 import { getUserProfile } from '@/lib/services/userProfile'
 import { getScoreTrend } from '@/lib/services/marketMemory'
 import { predict } from './predictionEngine'
-import { computeConfidence } from './confidence'
-import type { ReasoningContext } from './types'
+import { computeConfidence, computeDataQuality, computeCoverage } from './confidence'
+import type { ReasoningContext, EngineExplanation } from './types'
 
 const log = createLogger('services/engine/reasoningLayer')
 
@@ -82,12 +82,33 @@ export async function buildContext(input: BuildContextInput): Promise<ReasoningC
     (userProfile?.totalSearches ?? 0) +
     marketTrend.length
 
+  // AUDITORIA_INTELLIGENCE_ENGINE.md Fase 5 / P0.3: volumen (dataPoints)
+  // ya no es la única señal. dataQuality mide si el histórico del nicho
+  // es consistente consigo mismo; coverage mide cuánto de las 5 fuentes
+  // de contexto posibles estuvo realmente disponible para esta consulta.
+  const dataQuality = computeDataQuality(marketTrend.map(p => p.opportunityScore))
+  const coverageFlags = {
+    knownNiche: knownNiche != null,
+    related: related.length > 0,
+    userProfile: userProfile != null && userProfile.totalSearches > 0,
+    marketTrend: marketTrend.length > 0,
+    prediction: prediction != null,
+  }
+  const coverage = computeCoverage(coverageFlags)
+
   const confidence = computeConfidence(
     dataPoints,
     knownNiche
       ? `Este nicho ya se analizó ${knownNiche.timesAnalyzed} vez/veces antes en NichePulse.`
-      : 'Primera vez que NichePulse analiza este nicho — sin histórico propio todavía.'
+      : 'Primera vez que NichePulse analiza este nicho — sin histórico propio todavía.',
+    dataQuality,
+    coverage
   )
+
+  // Explicabilidad de segunda capa (Fase 6 / P0.2): qué se usó de verdad
+  // y qué faltó, en lenguaje llano — antes esta información se reunía
+  // igual pero se descartaba después de convertirse en texto de prompt.
+  const explanation = buildExplanation(coverageFlags, knownNiche)
 
   return {
     query,
@@ -106,7 +127,75 @@ export async function buildContext(input: BuildContextInput): Promise<ReasoningC
     marketTrend,
     prediction,
     confidence,
+    explanation,
   }
+}
+
+function buildExplanation(
+  flags: { knownNiche: boolean; related: boolean; userProfile: boolean; marketTrend: boolean; prediction: boolean },
+  knownNiche: ReasoningContext['knownNiche']
+): EngineExplanation {
+  const usedSources: string[] = []
+  const missingSources: string[] = []
+
+  if (flags.knownNiche) usedSources.push(`Histórico de ${knownNiche?.timesAnalyzed ?? 0} análisis previos de este nicho en NichePulse`)
+  else missingSources.push('Sin histórico propio de este nicho todavía (primera vez que se analiza)')
+
+  if (flags.related) usedSources.push('Nichos relacionados ya conocidos por el Knowledge Graph')
+  else missingSources.push('Sin nichos relacionados conocidos')
+
+  if (flags.userProfile) usedSources.push('Perfil de comportamiento del usuario (búsquedas y preferencias previas)')
+  else missingSources.push('Sin perfil de usuario suficiente (pocas o ninguna búsqueda previa)')
+
+  if (flags.marketTrend) usedSources.push('Tendencia de score de este nicho en los últimos 90 días')
+  else missingSources.push('Sin tendencia de mercado propia (nicho nuevo o sin snapshots recientes)')
+
+  if (flags.prediction) usedSources.push('Predicción del Prediction Engine')
+  else missingSources.push('Sin predicción disponible (Prediction Engine: faltan datos reales de resultado suficientes)')
+
+  return { usedSources, missingSources, contradictions: [] }
+}
+
+/**
+ * Paso de contraste determinístico (Fase 10 / P0.1) — SIN llamadas a IA.
+ * Compara lo que el LLM acaba de afirmar sobre un nicho contra lo que el
+ * propio Knowledge Graph ya sabía ANTES de preguntarle, y devuelve una
+ * lista de contradicciones objetivas (vacía si no hay ninguna, o si no
+ * hay histórico suficiente para poder contrastar). Esto es lo que hace
+ * que NichePulse deje de repetir ciegamente lo que dice el LLM: no
+ * sustituye su respuesta, pero puede señalar cuándo desconfiar de ella.
+ */
+export function detectContradictions(
+  niche: { verdict?: string | null; opportunity_score?: number | null; profit_score?: number | null },
+  ctx: Pick<ReasoningContext, 'marketTrend'>
+): string[] {
+  const contradictions: string[] = []
+  const trend = ctx.marketTrend
+  if (!trend || trend.length < 2) return contradictions // honesto: sin histórico, no hay nada que contrastar
+
+  const first = trend[0]
+  const last = trend[trend.length - 1]
+  if (first.opportunityScore == null || last.opportunityScore == null) return contradictions
+
+  const delta = last.opportunityScore - first.opportunityScore
+  const SIGNIFICANT = 10
+  const verdict = niche.verdict ?? null
+  const score = niche.opportunity_score ?? niche.profit_score ?? null
+
+  if (delta <= -SIGNIFICANT && verdict === 'invertir') {
+    contradictions.push(`El veredicto es "invertir", pero el score de este nicho ha bajado ${Math.abs(delta)} puntos en NichePulse en los últimos análisis — contrástalo antes de decidir.`)
+  }
+  if (delta >= SIGNIFICANT && verdict === 'evitar') {
+    contradictions.push(`El veredicto es "evitar", pero el score de este nicho ha subido ${delta} puntos en NichePulse en los últimos análisis — contrástalo antes de decidir.`)
+  }
+  if (score != null && last.opportunityScore != null) {
+    const jump = Math.abs(score - last.opportunityScore)
+    if (jump >= 30) {
+      contradictions.push(`El score de esta respuesta (${score}) se aleja mucho del último registrado para este nicho (${last.opportunityScore}) sin que el veredicto haya cambiado de forma proporcional.`)
+    }
+  }
+
+  return contradictions
 }
 
 /**

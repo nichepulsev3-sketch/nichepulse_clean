@@ -13,13 +13,60 @@
  * la misma regla de honestidad que ya se aplicó en scoringEngine.ts.
  */
 
-/** Nivel de confianza de una respuesta del motor — Módulo 12. */
+/**
+ * Nivel de confianza de una respuesta del motor — Módulo 12.
+ *
+ * AUDITORIA_INTELLIGENCE_ENGINE.md, Fase 5 (P0.3): antes `level` solo
+ * medía VOLUMEN de evidencia (cuántos hechos hay). Un nicho analizado
+ * muchas veces con datos contradictorios entre sí obtenía "confianza
+ * alta" igual que uno con datos consistentes -- eso es una confusión
+ * conceptual entre "hay muchos datos" y "los datos son fiables".
+ * `dataQuality` y `coverage` separan esas dos preguntas; `level` sigue
+ * existiendo como resumen para la UI, pero ahora se calcula a partir de
+ * las tres señales, no solo de `dataPoints`.
+ */
 export interface AIConfidence {
   level: 'sin_datos' | 'baja' | 'media' | 'alta'
   /** Cuántos hechos reales (interacciones, snapshots, resultados) sustentan esta respuesta. */
   dataPoints: number
+  /**
+   * 0-100: cuán CONSISTENTE es el histórico de este nicho consigo mismo
+   * (varianza baja entre snapshots de niche_score_history = alta calidad).
+   * `null` cuando no hay al menos 2 snapshots que comparar -- honesto:
+   * "no se puede juzgar consistencia todavía", nunca un valor inventado.
+   */
+  dataQuality: number | null
+  /**
+   * 0-100: de las fuentes de contexto que la Reasoning Layer podría
+   * aportar (nicho conocido, relacionados, perfil de usuario, tendencia
+   * de mercado, predicción), cuántas estuvieron realmente disponibles
+   * para esta respuesta concreta.
+   */
+  coverage: number
   /** Por qué ese nivel, en una frase corta y concreta. */
   reasoning: string
+}
+
+/**
+ * Explicabilidad de segunda capa — Módulo 13 (Fase 6 / P0.2 de
+ * AUDITORIA_INTELLIGENCE_ENGINE.md). El `ReasoningContext` ya reunía
+ * toda esta información antes de llamar al LLM, pero se descartaba
+ * después de convertirse en texto de prompt -- nunca llegaba al
+ * usuario. Esto la expone de forma estructurada.
+ */
+export interface EngineExplanation {
+  /** Qué datos propios de NichePulse (no del conocimiento general del LLM) se usaron. */
+  usedSources: string[]
+  /** Qué datos propios NO estaban disponibles para esta respuesta -- honesto, no oculto. */
+  missingSources: string[]
+  /**
+   * Contradicciones detectadas de forma determinística (sin IA) entre lo
+   * que afirma el LLM y lo que el propio Knowledge Graph sabe -- p.ej.
+   * el LLM dice "en crecimiento" pero niche_score_history muestra una
+   * caída sostenida. Vacío si no se detectó ninguna, o si no hay
+   * histórico suficiente para poder contrastar.
+   */
+  contradictions: string[]
 }
 
 /** De dónde viene cada pieza de información que usó el motor — Módulo 13. */
@@ -94,4 +141,6 @@ export interface ReasoningContext {
   marketTrend: ScoreTrendPoint[]
   prediction: Explained<Prediction> | null
   confidence: AIConfidence
+  /** Explicabilidad de segunda capa (Fase 6 / P0.2) -- ver EngineExplanation. */
+  explanation: EngineExplanation
 }

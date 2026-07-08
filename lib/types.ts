@@ -160,10 +160,23 @@ export interface NicheResult {
   // — campo aditivo, opcional por compatibilidad con búsquedas guardadas
   // antes de que existiera. Cuánto confía NichePulse (no el LLM) en el
   // contexto propio que le dio al motor para generar este nicho.
+  // dataQuality/coverage añadidos en AUDITORIA_INTELLIGENCE_ENGINE.md
+  // (Fase 5, P0.3) — separan "cuántos datos hay" de "cuán fiables son".
   engine_confidence?: {
     level: 'sin_datos' | 'baja' | 'media' | 'alta'
     dataPoints: number
+    dataQuality?: number | null
+    coverage?: number
     reasoning: string
+  }
+  // Explicabilidad de segunda capa (Módulo 13, Fase 6/10 de
+  // AUDITORIA_INTELLIGENCE_ENGINE.md, P0.1-P0.2) — qué datos propios de
+  // NichePulse se usaron/faltaron, y qué contradicciones deterministas
+  // se detectaron entre esta respuesta y el histórico del propio Graph.
+  engine_explanation?: {
+    usedSources: string[]
+    missingSources: string[]
+    contradictions: string[]
   }
 }
 

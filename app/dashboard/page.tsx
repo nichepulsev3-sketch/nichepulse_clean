@@ -530,7 +530,7 @@ export default function Dashboard() {
 
       {/* BÚSQUEDA */}
       {tab==='search'&&(
-        <div style={{flex:1,display:'flex',gap:20,padding:isMobile?'1rem':'1.5rem',maxWidth:1200,margin:'0 auto',width:'100%',alignItems:'flex-start',flexDirection:isMobile?'column':'row'}}>
+        <div style={{flex:1,display:'flex',gap:20,padding:isMobile?'1rem':'1.5rem',maxWidth:1200,margin:'0 auto',width:'100%',alignItems:isMobile?'stretch':'flex-start',flexDirection:isMobile?'column':'row'}}>
           <div style={{flex:1,minWidth:0}}>
 
             {/* Hero */}
@@ -593,9 +593,9 @@ export default function Dashboard() {
               <div style={{display:'flex',gap:8,marginBottom:'.9rem',flexWrap:isMobile?'wrap':'nowrap'}}>
                 <input className="np-input" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&runSearch()}
                   placeholder={isAgency?'ej: mascotas premium, tech sostenible...':'ej: mascotas, gadgets tech, yoga...'} style={{fontSize:isMobile?14:15}}/>
-                <div style={{display:'flex',gap:8,width:isMobile?'100%':'auto',alignItems:'center'}}>
+                <div style={{display:'flex',gap:8,width:isMobile?'100%':'auto',alignItems:'center',flexWrap:isMobile?'wrap':'nowrap'}}>
                   {/* Selector región por continente */}
-                  <div style={{position:'relative',flex:isMobile?1:'auto',display:'flex',alignItems:'center',gap:6}}>
+                  <div style={{position:'relative',flex:isMobile?'1 1 100%':'auto',display:'flex',alignItems:'center',gap:6,minWidth:0}}>
                     <select value={geo} onChange={e=>setGeo(e.target.value)}
                       style={{background:'var(--c3)',border:'1px solid rgba(124,111,255,0.2)',borderRadius:8,color:'var(--t1)',fontSize:12,padding:'0 10px',cursor:'pointer',fontFamily:'var(--font-body)',height:42,flex:isMobile?1:'auto',minWidth:isMobile?'auto':160}}>
                       <option value="">🌍 Escoger región</option>

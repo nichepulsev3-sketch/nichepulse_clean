@@ -6,10 +6,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
 import { jsonrepair } from 'jsonrepair'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getTrends, buildTrendContext } from './trends'
 import { env } from './env'
 import { createLogger } from './logger'
 import { cache, CACHE_TTL } from './services/cache'
+import { buildContext as buildEngineContext, contextToPromptBlock } from './services/engine/reasoningLayer'
+import type { AIConfidence } from './services/engine/types'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
 
@@ -441,7 +444,7 @@ function searchCacheKey(query: string, filters: Record<string, boolean>, plan: P
 /* ── Función principal ──────────────────────────────────────────── */
 export async function searchNiches(
   query: string, filters: Record<string,boolean>, plan: Plan, geo = 'US',
-  opts?: { history?: string[] }
+  opts?: { history?: string[]; userId?: string; db?: SupabaseClient }
 ): Promise<NicheResult[]> {
   const cfg = AI_CONFIG[plan] ?? AI_CONFIG.pro
   const isAgency   = plan === 'agency'
@@ -485,11 +488,35 @@ export async function searchNiches(
     ? `\nCONTEXTO DEL CLIENTE: sus últimas búsquedas fueron: ${history.map(h => `"${h}"`).join(', ')}. Si algún nicho que generes ahora se relaciona con su historial (mismo mercado, alternativa con mejor margen/menos competencia, complemento natural), menciónalo brevemente en su executive_summary o verdict_reason — solo si aporta valor real y es honesto, no lo fuerces si no hay relación.`
     : ''
 
+  // AI Intelligence Engine (Módulo 7, ver AI_INTELLIGENCE_ENGINE_ARCHITECTURE.md):
+  // reúne lo que NichePulse ya sabe (Graph, perfil del cliente, histórico de
+  // scores) ANTES de llamar al LLM y se lo añade como contexto adicional —
+  // mismo patrón ya validado con `historyContext`, nunca una instrucción que
+  // cambie el formato JSON obligatorio de abajo. Timeout propio (igual que
+  // trendContext arriba) para que un Supabase lento nunca alargue la
+  // búsqueda; best-effort total, un fallo aquí jamás debe bloquear nada.
+  let engineContext = ''
+  let engineConfidence: AIConfidence | null = null
+  if (opts?.userId && opts?.db) {
+    try {
+      const ctx = await Promise.race([
+        buildEngineContext({ query, userId: opts.userId, geo, db: opts.db }),
+        new Promise<null>(r => setTimeout(() => r(null), 2000)),
+      ])
+      if (ctx) {
+        engineContext = contextToPromptBlock(ctx)
+        engineConfidence = ctx.confidence
+      }
+    } catch (err: any) {
+      log.error('AI Intelligence Engine: no se pudo reunir contexto propio', { error: err?.message ?? String(err) })
+    }
+  }
+
   const filterDesc = Object.entries(filters).filter(([,v])=>v).map(([k])=>k).join(', ')
   const system     = buildSystem(plan, trendContext)
   const userPrompt = `Consulta del cliente: "${query}"
 Filtros: ${filterDesc || 'ninguno'} | País/Mercado: ${geo} | Nichos a analizar: ${maxResults} | Fecha: ${new Date().toISOString().split('T')[0]}
-${isAgency ? 'CLIENTE AGENCY: máxima profundidad, datos verificados, playbook incluido.' : ''}${historyContext}
+${isAgency ? 'CLIENTE AGENCY: máxima profundidad, datos verificados, playbook incluido.' : ''}${historyContext}${engineContext}
 Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_score DESC. Análisis de nivel consultor.`
 
   const promises: Promise<NicheResult[]>[] = [
@@ -501,17 +528,24 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
 
   log.info('Motor Multi-IA: iniciando búsqueda', { plan, ias: promises.length, geo })
 
+  // Adjunta el nivel de confianza del motor (Módulo 12) a cada nicho —
+  // aditivo, calculado por NichePulse, nunca pedido ni generado por el
+  // LLM. Si no hubo contexto del motor (búsqueda anónima o sin sesión),
+  // no se añade nada, no se inventa una confianza que no se calculó.
+  const withConfidence = (niches: NicheResult[]): NicheResult[] =>
+    engineConfidence ? niches.map(n => ({ ...n, engine_confidence: engineConfidence! })) : niches
+
   try {
     const results = await raceAI(promises)
-    const sliced = results.slice(0, maxResults)
-    if (cacheable) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
+    const sliced = withConfidence(results.slice(0, maxResults))
+    if (cacheable && !engineContext) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
     return sliced
   } catch {
     log.warn('Motor Multi-IA: reintentando solo con Claude')
     try {
       const retry = await callClaude(cfg.claude, system, userPrompt, cfg.tokens)
-      const sliced = retry.slice(0, maxResults)
-      if (cacheable) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
+      const sliced = withConfidence(retry.slice(0, maxResults))
+      if (cacheable && !engineContext) cache.set(cacheKey, sliced, CACHE_TTL.aiSearch)
       return sliced
     } catch (err: any) {
       // Log completo (no solo el mensaje reducido al usuario) para que el

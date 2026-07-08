@@ -162,6 +162,85 @@ export async function recordInteraction(
   }
 }
 
+export interface KnownNicheRecord {
+  slug: string
+  name: string
+  timesAnalyzed: number
+  latestOpportunityScore: number | null
+  latestVerdict: string | null
+  tags: string[]
+}
+
+/**
+ * Lee la entidad canonica de un nicho si ya existe en el grafo (Modulo 1,
+ * Knowledge Engine, ver AI_INTELLIGENCE_ENGINE_ARCHITECTURE.md). Devuelve
+ * null si el nicho todavia no se ha analizado nunca -- no se crea nada
+ * aqui, esta funcion es de solo lectura.
+ */
+export async function getKnownNiche(db: SupabaseClient, nicheName: string): Promise<KnownNicheRecord | null> {
+  try {
+    const slug = slugify(nicheName)
+    if (!slug) return null
+
+    const { data, error } = await db
+      .from('niches')
+      .select('slug, display_name, times_analyzed, latest_opportunity_score, latest_verdict, tags')
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (error) throw error
+    if (!data) return null
+
+    return {
+      slug: data.slug,
+      name: data.display_name,
+      timesAnalyzed: data.times_analyzed,
+      latestOpportunityScore: data.latest_opportunity_score,
+      latestVerdict: data.latest_verdict,
+      tags: data.tags ?? [],
+    }
+  } catch (err: any) {
+    log.error('No se pudo leer el nicho conocido del grafo', { nicheName, error: err?.message ?? String(err) })
+    return null
+  }
+}
+
+export interface TopNiche {
+  display_name: string
+  latest_opportunity_score: number | null
+  latest_verdict: string | null
+}
+
+/**
+ * Nichos con mejor opportunity_score reciente en todo el grafo (dato
+ * agregado publico, no depende de que usuario los analizo). Usado por
+ * el Copiloto de negocio (Fase 11) y por la Reasoning Layer -- antes
+ * vivia como una consulta suelta dentro de app/api/copilot/route.ts,
+ * se centraliza aqui para que cualquier consumidor pase por el grafo
+ * de la misma forma, nunca con un db.from('niches') propio.
+ *
+ * Los nombres de campo se mantienen igual que la columna de Supabase
+ * (snake_case) a proposito: lib/ai.ts (askCopilot) ya los consume asi
+ * desde que se construyo la Fase 11 -- cambiar el shape aqui habria
+ * significado tocar ese archivo sin necesidad real.
+ */
+export async function getTopNiches(db: SupabaseClient, limit = 8): Promise<TopNiche[]> {
+  try {
+    const { data, error } = await db
+      .from('niches')
+      .select('display_name, latest_opportunity_score, latest_verdict')
+      .not('latest_opportunity_score', 'is', null)
+      .order('latest_opportunity_score', { ascending: false })
+      .limit(limit)
+
+    if (error) throw error
+    return (data ?? []) as TopNiche[]
+  } catch (err: any) {
+    log.error('No se pudieron obtener los nichos con mejor score', { error: err?.message ?? String(err) })
+    return []
+  }
+}
+
 export interface RelatedNiche {
   name: string
   slug: string

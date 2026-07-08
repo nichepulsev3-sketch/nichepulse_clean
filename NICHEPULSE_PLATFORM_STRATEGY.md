@@ -2,6 +2,8 @@
 
 **Estado: Fase 1 (Niche Intelligence Graph), Fase 1b (wiring de watchlist/favoritos/exportaciones), Fase 6 (explicabilidad en watchlist/favoritos), Fase 3 (el cron diario ya alimenta el historial de scores), Fase 7 (descubrimiento por tags) y Fase 11 (Copiloto de negocio, página + endpoint) EJECUTADAS. Fase 2 (perfil de usuario) ejecutada como servicio de lectura y ya usada como contexto del Copiloto. El resto de fases de este documento son roadmap, no promesas — cada una dice explícitamente si ya se puede construir hoy o si depende de tiempo/datos que todavía no existen.**
 
+**Actualización — AI Intelligence Engine (mandato de los 16 módulos, ver `AI_INTELLIGENCE_ENGINE_ARCHITECTURE.md`):** construido el esqueleto completo del motor bajo `lib/services/engine/` y conectado tanto al Copiloto como al buscador principal (`searchNiches`). Esto formaliza y cierra, entre otras cosas, la decisión que en la sección 2.3 de este mismo documento quedó pendiente de confirmación — personalizar la búsqueda principal con el perfil del usuario. Detalle completo, contratos y limitaciones honestas en el documento de arquitectura; resumen aquí abajo en la sección 2.8.
+
 Este documento responde al mandato del CEO: convertir NichePulse en una plataforma de inteligencia de oportunidades — no "otra app con IA", sino un sistema que acumula conocimiento propio y se vuelve más difícil de copiar cuanto más se usa. Extiende (no sustituye) `MOTOR_PROPIO_PROPUESTA.md`: el Graph que se describe aquí es la infraestructura de datos sobre la que ese documento ya empezó a construir (`niche_outcomes`).
 
 ## 0. Regla que se aplicó para escribir este roadmap
@@ -98,6 +100,17 @@ Esto es la parte más importante de ser honesto con el CEO: **ninguna de estas f
 - Enlace añadido en la navegación del dashboard (junto a Watchlist), protegido en `middleware.ts`.
 
 Esta es la primera fase en la que el perfil de usuario (Fase 2) se usa de verdad para personalizar algo — pero de forma acotada y de bajo riesgo: es un prompt nuevo y separado, no una modificación del prompt de búsqueda existente. La decisión de tocar `buildSystem`/`searchNiches` para personalizar la búsqueda en sí sigue pendiente y sigue requiriendo confirmación explícita (sección 2.3).
+
+## 2.8 AI Intelligence Engine ejecutado: el LLM pasa de "cerebro" a "intérprete"
+
+Mandato explícito del CEO: no integrar simplemente un LLM, construir un motor de inteligencia propio de 16 módulos donde la IA es una pieza sustituible, no el centro. Arquitectura completa en `AI_INTELLIGENCE_ENGINE_ARCHITECTURE.md`; aquí el resumen ejecutivo.
+
+- **`lib/services/engine/`** (nuevo) — el "sistema operativo" (Módulo 16, `registry.ts`) que expone cada módulo del motor con un contrato uniforme: `reasoningLayer.ts` (Módulo 7, el orquestador), `confidence.ts` (Módulo 12), `predictionEngine.ts` (Módulo 6, stub honesto hasta 300 `niche_outcomes` reales), `agents.contracts.ts` (Módulo 15, solo interfaces, sin implementación, tal como se pidió).
+- **`lib/services/marketMemory.ts`** (nuevo, Módulo 4) — lee `niche_score_history` (ya poblada desde hace semanas) para saber qué nichos suben o bajan de score en el tiempo. Cero migraciones nuevas.
+- **`searchNiches` (`lib/ai.ts`) — decisión pendiente de la sección 2.3 ahora resuelta**: el buscador principal ya recibe el contexto del motor (nicho conocido, perfil del usuario, histórico de scores) como bloque adicional al prompt, mismo patrón seguro ya validado con `historyContext` — nunca toca el JSON obligatorio de `buildSystem`. Cada `NicheResult` devuelto lleva ahora `engine_confidence` (aditivo, opcional).
+- **Copiloto** (`app/api/copilot/route.ts`) — refactorizado para pasar por el registro del motor (`engine.knowledge.getTop`, `engine.aiMemory.getUserProfile`) en vez de consultas sueltas propias.
+- **Honestidad estructural**: los módulos que necesitan volumen real (Prediction, Learning, Niche DNA, Global Market Index, Self-Improvement) tienen su contrato construido pero devuelven "sin datos suficientes" hasta que se cumplan umbrales explícitos (300 `niche_outcomes`, 90 días de histórico) — nunca fabrican un número.
+- **Limitación honesta**: el "nicho conocido" del contexto se busca por coincidencia exacta con la consulta del cliente — funciona bien cuando alguien repite una búsqueda ya analizada, no cuando la consulta es una categoría amplia. El perfil de usuario (preferencias de país/categoría) no tiene esa limitación y es, hoy, la señal más valiosa que aporta el motor al buscador principal.
 
 ## 3. Qué significa esto para el CEO, en una frase
 

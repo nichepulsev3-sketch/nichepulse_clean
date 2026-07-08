@@ -155,6 +155,16 @@ export interface NicheResult {
   expert_verdict?:      string
   validated_roi?:       string
   agency_playbook?:     string[]
+
+  // AI Intelligence Engine (Módulo 12, ver AI_INTELLIGENCE_ENGINE_ARCHITECTURE.md)
+  // — campo aditivo, opcional por compatibilidad con búsquedas guardadas
+  // antes de que existiera. Cuánto confía NichePulse (no el LLM) en el
+  // contexto propio que le dio al motor para generar este nicho.
+  engine_confidence?: {
+    level: 'sin_datos' | 'baja' | 'media' | 'alta'
+    dataPoints: number
+    reasoning: string
+  }
 }
 
 /* ── Comparador de nichos ────────────────────────────────────────── */

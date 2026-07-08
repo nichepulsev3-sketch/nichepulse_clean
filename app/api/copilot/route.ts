@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { askCopilot } from '@/lib/ai'
-import { getUserProfile } from '@/lib/services/userProfile'
+import { engine } from '@/lib/services/engine/registry'
 import { createLogger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -37,19 +37,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El Copiloto de negocio está disponible en Pro y Agency.' }, { status: 403 })
     }
 
-    // Contexto real del Graph: nichos con mejor score reciente (agregado
-    // público, no depende de qué usuario los analizó) + el perfil propio
-    // del cliente que hace la pregunta.
-    const [{ data: topNiches }, userProfile] = await Promise.all([
-      db.from('niches')
-        .select('display_name, latest_opportunity_score, latest_verdict')
-        .not('latest_opportunity_score', 'is', null)
-        .order('latest_opportunity_score', { ascending: false })
-        .limit(MAX_CONTEXT_NICHES),
-      getUserProfile(db, user.id),
+    // Contexto real del AI Intelligence Engine (Módulo 16, ver
+    // AI_INTELLIGENCE_ENGINE_ARCHITECTURE.md): nichos con mejor score
+    // reciente (Knowledge Engine, M1) + perfil propio del cliente que
+    // pregunta (AI Memory, M3). Antes esta consulta vivía suelta aquí
+    // mismo; ahora pasa por el registro del motor como cualquier otro
+    // consumidor, sin cambiar el resultado que ve el usuario.
+    const [topNiches, userProfile] = await Promise.all([
+      engine.knowledge.getTop(db, MAX_CONTEXT_NICHES),
+      engine.aiMemory.getUserProfile(db, user.id),
     ])
 
-    const result = await askCopilot(question, { topNiches: topNiches ?? [], userProfile }, profile.plan)
+    const result = await askCopilot(question, { topNiches, userProfile }, profile.plan)
     return NextResponse.json(result)
   } catch (err: any) {
     log.error('Error en el copiloto de negocio', { error: err?.message ?? String(err) })

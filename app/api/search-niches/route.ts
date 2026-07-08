@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     // 5. Ejecutar búsqueda con IA + señales en vivo
     let results
     try {
-      results = await searchNiches(query, filters, profile.plan, geo.toUpperCase(), { history })
+      results = await searchNiches(query, filters, profile.plan, geo.toUpperCase(), { history, userId: user.id, db })
     } catch (searchErr) {
       // La cuota ya se gastó (RPC atómica) pero la búsqueda falló: devolvemos
       // la búsqueda para no cobrarle al usuario un intento que no obtuvo resultado.

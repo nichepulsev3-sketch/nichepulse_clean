@@ -142,7 +142,7 @@ export default function RadarPage() {
 
         {/* Grid */}
         {loading ? (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
             <SkeletonCard variant="niche" count={3}/>
           </div>
         ) : nichos.length === 0 ? (
@@ -150,7 +150,7 @@ export default function RadarPage() {
             No hay señales disponibles para esta categoría ahora mismo.
           </div>
         ) : (
-          <div className="stagger-children" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:14 }}>
+          <div className="stagger-children" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
             {nichos.map((n, i) => (
               <div key={i} className="card card-interactive fade-up"
                 onClick={() => router.push(`/dashboard?q=${encodeURIComponent(n.name)}`)}

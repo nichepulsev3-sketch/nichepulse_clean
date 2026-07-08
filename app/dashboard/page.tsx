@@ -9,6 +9,7 @@ import VerdictBadge from '@/components/VerdictBadge'
 import CeoMode from '@/components/CeoMode'
 import CompareModal from '@/components/CompareModal'
 import OpportunityFeedBell from '@/components/OpportunityFeedBell'
+import MobileBottomNav from '@/components/MobileBottomNav'
 import { recordInteraction } from '@/lib/services/nicheGraph'
 import { createLogger } from '@/lib/logger'
 
@@ -465,9 +466,11 @@ export default function Dashboard() {
   const GROUP_ORDER=['Hoy','Ayer','Esta semana','Este mes','Más antiguas']
 
   return(
-    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--c1)'}}>
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--c1)',paddingBottom:isMobile?64:0}}>
 
-      {/* NAV */}
+      {/* NAV — en móvil solo logo + campana: el resto de accesos vive en
+          la barra inferior (MobileBottomNav) para que nada se corte ni
+          quede fuera de alcance. En escritorio se mantiene todo inline. */}
       <nav className='np-nav-sticky' style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:isMobile?'10px 12px':'12px 20px',borderBottom:'1px solid rgba(124,111,255,0.15)',position:'sticky',top:0,background:'rgba(8,8,15,0.96)',backdropFilter:'blur(16px)',zIndex:100,boxShadow:'0 1px 20px rgba(0,0,0,0.3)'}}>
         <div style={{fontFamily:'var(--font-display)',fontSize:isMobile?'1rem':'1.15rem',fontWeight:800,letterSpacing:'-0.5px',display:'flex',alignItems:'center',gap:6}}>
           <span style={{background:'var(--g1)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>NichepulseV.3</span>
@@ -475,44 +478,55 @@ export default function Dashboard() {
           {profileLoaded&&isPro&&!isAgency&&<span style={{background:'var(--g1)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>PRO</span>}
           {profileLoaded&&isAgency&&<span style={{background:'var(--g2)',color:'#fff',fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:10}}>AGENCY</span>}
         </div>
-        <div style={{display:'flex',gap:4,alignItems:'center',minWidth:0,overflowX:isMobile?'auto':'visible',WebkitOverflowScrolling:'touch',flexShrink:1}}>
+        {isMobile?(
+          profileLoaded&&isPro&&<OpportunityFeedBell/>
+        ):(
+        <div style={{display:'flex',gap:4,alignItems:'center'}}>
           {TABS.map(t=>(
             <button key={t.key} onClick={()=>{setTab(t.key);if(t.key==='history')loadHistory(1)}}
-              style={{padding:isMobile?'6px 8px':'6px 14px',borderRadius:20,fontSize:isMobile?11:13,cursor:'pointer',border:tab===t.key?'none':'1px solid rgba(124,111,255,0.2)',background:tab===t.key?'var(--g1)':'transparent',color:tab===t.key?'#fff':'var(--t2)',fontFamily:'var(--font-body)',fontWeight:tab===t.key?600:400,boxShadow:tab===t.key?'0 2px 10px rgba(124,111,255,0.35)':'none',transition:'all .2s'}}>
-              {isMobile?t.icon:t.label}
+              style={{padding:'6px 14px',borderRadius:20,fontSize:13,cursor:'pointer',border:tab===t.key?'none':'1px solid rgba(124,111,255,0.2)',background:tab===t.key?'var(--g1)':'transparent',color:tab===t.key?'#fff':'var(--t2)',fontFamily:'var(--font-body)',fontWeight:tab===t.key?600:400,boxShadow:tab===t.key?'0 2px 10px rgba(124,111,255,0.35)':'none',transition:'all .2s'}}>
+              {t.label}
             </button>
           ))}
           {profileLoaded&&isPro&&<OpportunityFeedBell/>}
           <Link href="/radar" title="Radar de nichos"
-            style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(0,229,195,0.3)',background:'rgba(0,229,195,0.08)',color:'var(--acc3)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
-            {isMobile?'📡':'📡 Radar'}
+            style={{padding:'6px 12px',borderRadius:20,fontSize:12,border:'1px solid rgba(0,229,195,0.3)',background:'rgba(0,229,195,0.08)',color:'var(--acc3)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+            📡 Radar
           </Link>
           <Link href="/favorites" title="Mis favoritos"
-            style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(255,209,102,0.3)',background:'rgba(255,209,102,0.08)',color:'#ffd166',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
-            {isMobile?'⭐':'⭐ Favoritos'}
+            style={{padding:'6px 12px',borderRadius:20,fontSize:12,border:'1px solid rgba(255,209,102,0.3)',background:'rgba(255,209,102,0.08)',color:'#ffd166',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+            ⭐ Favoritos
           </Link>
           {profileLoaded&&isPro&&(
             <Link href="/watchlist" title="Mi watchlist"
-              style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
-              {isMobile?'👁':'👁 Watchlist'}
+              style={{padding:'6px 12px',borderRadius:20,fontSize:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+              👁 Watchlist
             </Link>
           )}
           {profileLoaded&&isPro&&(
             <Link href="/copilot" title="Copiloto de negocio"
-              style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(244,113,181,0.3)',background:'rgba(244,113,181,0.08)',color:'var(--pink)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
-              {isMobile?'🧭':'🧭 Copiloto'}
+              style={{padding:'6px 12px',borderRadius:20,fontSize:12,border:'1px solid rgba(244,113,181,0.3)',background:'rgba(244,113,181,0.08)',color:'var(--pink)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+              🧭 Copiloto
             </Link>
           )}
           <a href="/download" title="Descargar app"
-            style={{padding:isMobile?'6px 7px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
-            {isMobile?'⬇':'⬇ App'}
+            style={{padding:'6px 12px',borderRadius:20,fontSize:12,border:'1px solid rgba(124,111,255,0.3)',background:'rgba(124,111,255,0.08)',color:'var(--acc)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4,fontFamily:'var(--font-body)',fontWeight:500}}>
+            ⬇ App
           </a>
           <button onClick={async()=>{await supabase.auth.signOut();window.location.href='/'}}
-            style={{padding:isMobile?'6px 8px':'6px 12px',borderRadius:20,fontSize:isMobile?11:12,cursor:'pointer',border:'1px solid rgba(255,255,255,0.1)',background:'transparent',color:'var(--t3)',fontFamily:'var(--font-body)'}}>
-            {isMobile?'↩':'Salir'}
+            style={{padding:'6px 12px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid rgba(255,255,255,0.1)',background:'transparent',color:'var(--t3)',fontFamily:'var(--font-body)'}}>
+            Salir
           </button>
         </div>
+        )}
       </nav>
+
+      {isMobile&&(
+        <MobileBottomNav
+          tab={tab} setTab={setTab} isPro={isPro} isAgency={isAgency}
+          onSignOut={async()=>{await supabase.auth.signOut();window.location.href='/'}}
+        />
+      )}
 
       {/* BÚSQUEDA */}
       {tab==='search'&&(
@@ -1054,7 +1068,7 @@ export default function Dashboard() {
       {/* Badge Agency */}
       {profileLoaded&&isAgency&&(
         <div onClick={()=>setTab('plans')}
-          className='np-badge-float' style={{position:'fixed',...(isMobile?{left:'50%',transform:'translateX(-50%)'}:{top:70,right:16}),background:'var(--g2)',color:'#fff',padding:isMobile?'8px 18px':'6px 14px',borderRadius:20,fontSize:isMobile?13:12,fontWeight:700,cursor:'pointer',zIndex:50,boxShadow:'0 4px 14px rgba(255,153,0,0.45)',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',userSelect:'none' as const}}>
+          className='np-badge-float' style={{position:'fixed',...(isMobile?{left:'50%',transform:'translateX(-50%)',bottom:'calc(76px + env(safe-area-inset-bottom, 0px))'}:{top:70,right:16}),background:'var(--g2)',color:'#fff',padding:isMobile?'8px 18px':'6px 14px',borderRadius:20,fontSize:isMobile?13:12,fontWeight:700,cursor:'pointer',zIndex:50,boxShadow:'0 4px 14px rgba(255,153,0,0.45)',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',userSelect:'none' as const}}>
           🏆 <span>{isMobile?'Plan Agency':'Agency'}</span><span style={{opacity:.75,fontSize:10}}>· Ver plan</span>
         </div>
       )}

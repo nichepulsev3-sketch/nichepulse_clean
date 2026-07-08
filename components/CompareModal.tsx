@@ -49,12 +49,19 @@ export default function CompareModal({
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', zIndex: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflowY: 'auto', backdropFilter: 'blur(4px)' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 780, background: 'var(--c2)', border: '1px solid rgba(0,229,195,0.25)', borderRadius: 20, padding: '1.5rem', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+      {/* Alto acotado (nunca 'none') + cabecera fija con el botón de cerrar
+          fuera del área con scroll — mismo patrón que el modal de detalle
+          de nicho: si el contenido (tabla de 3 nichos x 12 scores) es más
+          alto que el hueco disponible, antes el cierre podía quedar fuera
+          de alcance por el clipping de flexbox centrado + overflow. */}
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 780, background: 'var(--c2)', border: '1px solid rgba(0,229,195,0.25)', borderRadius: 20, maxHeight: '90vh', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }}>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 1.5rem 1rem', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.1rem' }}>🆚 Comparador de nichos</div>
-          <button onClick={onClose} style={{ background: 'var(--c3)', border: 'none', color: 'var(--t1)', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'var(--c3)', border: 'none', color: 'var(--t1)', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>✕</button>
         </div>
+
+        <div style={{ overflowY: 'auto', padding: '1rem 1.5rem 1.5rem' }}>
 
         {/* Veredicto IA */}
         <div style={{ marginBottom: '1.25rem', borderRadius: 12, padding: '14px 16px', background: 'rgba(0,229,195,0.08)', border: '1px solid rgba(0,229,195,0.3)' }}>
@@ -134,6 +141,7 @@ export default function CompareModal({
               Ver detalle de {n.name} →
             </button>
           ))}
+        </div>
         </div>
       </div>
     </div>

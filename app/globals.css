@@ -562,12 +562,22 @@ h1,h2,h3,h4,h5,h6 {
   .np-nav-sticky { padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important; }
   body { padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
+/* Posición base del aviso de instalar PWA: antes solo tenía bottom en
+   iOS (@supports -webkit-touch-callout), así que en Android se quedaba
+   sin bottom/top definidos y podía aparecer en un sitio impredecible
+   o inaccesible. Regla general para todos los navegadores. */
+.np-pwa-banner { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 @supports (-webkit-touch-callout:none) {
   * { -webkit-overflow-scrolling: touch; }
   input, select, textarea { font-size: max(16px, 1em) !important; }
   * { -webkit-tap-highlight-color: transparent; }
   .modal-sheet, .np-modal-sheet { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important; }
-  .np-badge-float, .np-pwa-banner { bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+/* En móvil, el dashboard tiene barra de navegación inferior fija (~64px):
+   el badge Agency y el aviso de instalar PWA deben flotar por encima
+   para no quedar tapados / sin poder pulsarse. */
+@media (max-width: 768px) {
+  .np-badge-float, .np-pwa-banner { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 
 /* ── Responsive utilities ─────────────────────────────────────────── */

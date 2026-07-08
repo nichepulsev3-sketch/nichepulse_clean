@@ -4,3 +4,10 @@ node_modules/
 .env
 .DS_Store
 *.pem
+
+# Artefacto de build de TypeScript (tsconfig.json: "incremental":true).
+# Nunca debe comitearse -- si queda trackeado en git, su presencia choca
+# con el cache de capas de Railway/BuildKit al montar /app/tsconfig.tsbuildinfo
+# durante `npm run build`, y el build falla con un error de mount ajeno
+# a cualquier cambio de código ("not a directory").
+*.tsbuildinfo

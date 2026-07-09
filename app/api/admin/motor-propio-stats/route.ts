@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logger'
+import { computeGraphCoverage, computeKnowledgeGrowth } from '@/lib/services/engine/metrics'
 
 const log = createLogger('api/admin/motor-propio-stats')
 
@@ -84,6 +85,15 @@ export async function GET(req: NextRequest) {
       .order('reported_at', { ascending: false })
       .limit(20)
 
+    // ── Metrics Layer (NICHEPULSE_INTELLIGENCE_ENGINE_BLUEPRINT.md,
+    // capa 12): las 2 de las 9 métricas de AI Quality que hoy son
+    // calculables sin inventar nada -- ver lib/services/engine/metrics.ts
+    // para las 7 restantes y su condición objetiva de activación.
+    const [graphCoverage, knowledgeGrowth] = await Promise.all([
+      computeGraphCoverage(db),
+      computeKnowledgeGrowth(db, 30),
+    ])
+
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       totals: {
@@ -95,6 +105,8 @@ export async function GET(req: NextRequest) {
       byMilestone,
       eligibleWatchlist: eligibleWatchlist ?? 0,
       recent: recent ?? [],
+      graphCoverage,
+      knowledgeGrowth,
     })
   } catch (err: any) {
     log.error('Error generando estadísticas del panel', { error: err?.message ?? String(err) })

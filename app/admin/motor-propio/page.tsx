@@ -10,6 +10,8 @@ type Stats = {
   byMilestone: { milestone: number; emailsSent: number; responses: number; responseRate: number | null }[]
   eligibleWatchlist: number
   recent: { niche_name: string; milestone_days: number; tried: boolean; outcome: string; revenue_range: string | null; reported_at: string }[]
+  graphCoverage: { totalNiches: number; withCategory: number; withCategoryPct: number; withTags: number; withTagsPct: number }
+  knowledgeGrowth: { windowDays: number; newNichesThisWindow: number; newNichesPreviousWindow: number; growthPct: number | null }
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -72,6 +74,26 @@ export default function MotorPropioAdminPage() {
 
         {stats && (
           <>
+            {/* Metrics Layer (NICHEPULSE_INTELLIGENCE_ENGINE_BLUEPRINT.md,
+                capa 12 / AI Quality): las 2 de 9 métricas calculables hoy
+                sin inventar nada -- Graph Coverage y Knowledge Growth. */}
+            <SectionTitle>Metrics Layer · Graph Coverage</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+              <Card label="Nichos en el grafo" value={stats.graphCoverage.totalNiches} />
+              <Card label="Con categoría (%)" value={stats.graphCoverage.withCategoryPct} />
+              <Card label="Con tags (%)" value={stats.graphCoverage.withTagsPct} />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--txt-3)', marginBottom: 24, marginTop: -12 }}>
+              "Con categoría" bajo es esperado hoy — <code>niches.category</code> existe en el schema pero no se puebla todavía (ver ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 7).
+            </div>
+
+            <SectionTitle>Metrics Layer · Knowledge Growth ({stats.knowledgeGrowth.windowDays} días)</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+              <Card label="Nichos nuevos (ventana actual)" value={stats.knowledgeGrowth.newNichesThisWindow} />
+              <Card label="Nichos nuevos (ventana anterior)" value={stats.knowledgeGrowth.newNichesPreviousWindow} />
+              <Card label="Crecimiento" value={stats.knowledgeGrowth.growthPct ?? 0} suffix={stats.knowledgeGrowth.growthPct !== null ? '%' : ' (sin base previa)'} />
+            </div>
+
             {/* Totales */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
               <Card label="Resultados capturados" value={stats.totals.totalOutcomes} />
@@ -146,11 +168,11 @@ export default function MotorPropioAdminPage() {
   )
 }
 
-function Card({ label, value }: { label: string; value: number }) {
+function Card({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
   return (
     <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--brd-1)', borderRadius: 14, padding: '14px 16px' }}>
       <div style={{ fontSize: 11, color: 'var(--txt-3)', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.4rem' }}>{value}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.4rem' }}>{value}{suffix ?? ''}</div>
     </div>
   )
 }

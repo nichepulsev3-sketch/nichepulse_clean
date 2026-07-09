@@ -21,6 +21,7 @@ import * as predictionEngine from './predictionEngine'
 import * as confidenceModule from './confidence'
 import * as reasoningLayer from './reasoningLayer'
 import * as decisionEngineModule from './decisionEngine'
+import * as metricsModule from './metrics'
 
 export const engine = {
   /** Módulo 1 — Knowledge Engine (lectura/escritura ya en nicheGraph.ts). */
@@ -70,6 +71,13 @@ export const engine = {
     decide: decisionEngineModule.decide,
     detectContradictions: decisionEngineModule.detectContradictions,
     computeSupportingEvidence: decisionEngineModule.computeSupportingEvidence,
+  },
+  /** Módulo 18 — Metrics Layer (NICHEPULSE_INTELLIGENCE_ENGINE_BLUEPRINT.md,
+   *  capa 12). Solo las 2 de 9 métricas de AI Quality calculables hoy sin
+   *  inventar nada -- ver metrics.ts para las 7 restantes y su gate. */
+  metrics: {
+    graphCoverage: metricsModule.computeGraphCoverage,
+    knowledgeGrowth: metricsModule.computeKnowledgeGrowth,
   },
 } as const
 

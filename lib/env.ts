@@ -92,6 +92,20 @@ export const env = {
   // sigue funcionando exactamente igual que hoy.
   get NEXT_PUBLIC_SENTRY_DSN() { return process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() || '' },
 
+  // ── Analytics de producto (AUDITORIA_LANZAMIENTO_V1.md, Fase 9/11/15,
+  // P0.9) ───────────────────────────────────────────────────────────
+  // Sin ningún analytics de producto hoy, el equipo lanzaría a ciegas
+  // sobre dónde abandona el usuario en el embudo registro → búsqueda →
+  // guardar nicho -- exactamente lo que el propio criterio de "listo
+  // para producción" del CEO pide evitar ("hay métricas para aprender
+  // del uso real"). Plausible se eligió como opción recomendada por ser
+  // ligero (un único script), sin cookies (coherente con la Política de
+  // Privacidad recién añadida) y sin necesitar consentimiento de cookies
+  // adicional. Opcional a propósito: sin esta variable, layout.tsx
+  // simplemente no carga el script -- cero comportamiento nuevo hasta
+  // que el equipo cree la cuenta y la configure en Railway.
+  get NEXT_PUBLIC_PLAUSIBLE_DOMAIN() { return process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN?.trim() || '' },
+
   // ── Admin (panel de Motor propio, ver MOTOR_PROPIO_PROPUESTA.md) ──
   // Lista de emails con acceso a /admin/*, separados por coma. Opcional:
   // si no se configura en Railway, cae por defecto al email del CEO para

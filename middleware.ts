@@ -56,10 +56,14 @@ export async function middleware(req: NextRequest) {
   /* ── Rate limiting para APIs ──────────────────────────────── */
   if (pathname.startsWith('/api/')) {
     const apiKey = `api:${ip}`
-    const isSearchRoute = pathname.includes('search-niches')
+    // AUDITORIA_LANZAMIENTO_V1.md, Fase 5/15 (P0.6): compare-niches,
+    // copilot y executive-report también gastan IA (Claude), igual que
+    // search-niches -- antes caían en el límite genérico de 60/min, un
+    // vector de abuso de coste barato. Mismo límite estricto que search.
+    const isAiRoute = ['search-niches', 'compare-niches', 'copilot', 'executive-report'].some(r => pathname.includes(r))
 
-    // Búsquedas: 20/minuto por IP; otras APIs: 60/minuto
-    const limit = isSearchRoute ? 20 : 60
+    // Rutas que gastan IA: 20/minuto por IP; otras APIs: 60/minuto
+    const limit = isAiRoute ? 20 : 60
     const windowMs = 60 * 1000
 
     if (!checkRateLimit(apiKey, limit, windowMs)) {

@@ -33,7 +33,11 @@ export default function FavoritesPage() {
     // siempre undefined y esta página nunca mostró de verdad nombre, market
     // size ni margin de ningún favorito. Bug preexistente encontrado al
     // conectar el Niche Intelligence Graph, corregido de paso.
-    const { data } = await supabase.from('favorites').select('id, user_id, niche:niche_data, note, tags, collection, created_at').eq('user_id', user.id).order('created_at', { ascending: false })
+    // AUDITORIA_LANZAMIENTO_V1.md, P0.5: sin .limit() esta consulta traía
+    // TODOS los favoritos del usuario sin cota -- inofensivo con pocos,
+    // una consulta cada vez más pesada según crece la cuenta. 500 es muy
+    // por encima de cualquier uso real hoy, pero pone un techo explícito.
+    const { data } = await supabase.from('favorites').select('id, user_id, niche:niche_data, note, tags, collection, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(500)
     if (data) setFavorites(data as any)
     setLoading(false)
   }

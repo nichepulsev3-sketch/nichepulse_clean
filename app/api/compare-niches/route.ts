@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     log.error('Error comparando nichos', { error: err?.message ?? String(err) })
     if (err?.name === 'ZodError') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
-    return NextResponse.json({ error: err?.message ?? 'Error interno' }, { status: 500 })
+    // AUDITORIA_LANZAMIENTO_V1.md, P0.3: no exponer detalle interno al cliente.
+    return NextResponse.json({ error: 'Error interno. Inténtalo de nuevo.' }, { status: 500 })
   }
 }

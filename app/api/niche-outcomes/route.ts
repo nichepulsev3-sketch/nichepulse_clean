@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     log.error('Error guardando resultado real', { userId: user.id, error: error.message })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // AUDITORIA_LANZAMIENTO_V1.md, P0.3: no exponer el mensaje crudo de Supabase.
+    return NextResponse.json({ error: 'No se pudo guardar tu respuesta. Inténtalo de nuevo.' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })

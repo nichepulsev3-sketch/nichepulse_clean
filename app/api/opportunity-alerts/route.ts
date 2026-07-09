@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
     .select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
   if (error) {
     log.error('Error listando alertas', { userId: user.id, error: error.message })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // AUDITORIA_LANZAMIENTO_V1.md, P0.3: no exponer el mensaje crudo de Supabase.
+    return NextResponse.json({ error: 'No se pudieron cargar tus alertas.' }, { status: 500 })
   }
   return NextResponse.json({ alerts: data ?? [], unread: (data ?? []).filter((a: any) => !a.read).length })
 }
@@ -42,7 +43,8 @@ export async function PATCH(req: NextRequest) {
   const { error } = await q
   if (error) {
     log.error('Error marcando alertas como leídas', { userId: user.id, error: error.message })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // AUDITORIA_LANZAMIENTO_V1.md, P0.3: no exponer el mensaje crudo de Supabase.
+    return NextResponse.json({ error: 'No se pudo actualizar la alerta.' }, { status: 500 })
   }
   return NextResponse.json({ ok: true })
 }

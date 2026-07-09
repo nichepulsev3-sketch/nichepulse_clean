@@ -37,7 +37,9 @@ export default function WatchlistPage() {
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('watchlist').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    // AUDITORIA_LANZAMIENTO_V1.md, P0.5: mismo fix que favorites/page.tsx --
+    // techo explícito en vez de traer la tabla completa sin cota.
+    const { data } = await supabase.from('watchlist').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(500)
     if (data) setRows(data as any)
     setLoading(false)
   }

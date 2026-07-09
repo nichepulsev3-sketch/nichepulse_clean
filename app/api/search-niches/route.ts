@@ -98,6 +98,10 @@ export async function POST(req: NextRequest) {
     if (err?.code === 'ai_unavailable') {
       return NextResponse.json({ error: err.message, code: 'ai_unavailable' }, { status: 503 })
     }
-    return NextResponse.json({ error: err?.message ?? 'Error interno' }, { status: 500 })
+    // AUDITORIA_LANZAMIENTO_V1.md, Fase 5/15 (P0.3): antes se devolvía
+    // err?.message crudo al cliente (podía incluir detalle interno de
+    // Supabase/excepciones). El detalle real ya queda en el log.error
+    // de arriba -- el cliente solo necesita saber que algo falló.
+    return NextResponse.json({ error: 'Error interno. Inténtalo de nuevo.' }, { status: 500 })
   }
 }

@@ -11,5 +11,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/`,        lastModified: now, changeFrequency: 'weekly',  priority: 1   },
     { url: `${base}/pricing`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${base}/download`,lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    // AUDITORIA_LANZAMIENTO_V1.md, Fase 13/15 (P0.7): páginas legales,
+    // públicas y sin datos personales — indexables como cualquier otra
+    // página estática.
+    { url: `${base}/legal/privacidad`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${base}/legal/terminos`,   lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
   ]
 }

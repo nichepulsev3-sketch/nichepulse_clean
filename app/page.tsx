@@ -88,6 +88,10 @@ export default function Home() {
           <Link href="/download" style={{ color:'var(--acc)', textDecoration:'none' }}>Descargar app</Link>
           {' '}·{' '}
           <Link href="/pricing" style={{ color:'var(--t3)', textDecoration:'none' }}>Planes</Link>
+          {' '}·{' '}
+          <Link href="/legal/privacidad" style={{ color:'var(--t3)', textDecoration:'none' }}>Privacidad</Link>
+          {' '}·{' '}
+          <Link href="/legal/terminos" style={{ color:'var(--t3)', textDecoration:'none' }}>Términos</Link>
         </div>
       </footer>
     </main>

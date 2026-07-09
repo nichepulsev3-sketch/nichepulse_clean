@@ -56,6 +56,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin=""/>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+        {/* AUDITORIA_LANZAMIENTO_V1.md, Fase 9/11/15 (P0.9): analytics de
+            producto mínimo, sin cookies, activo solo si se configura
+            NEXT_PUBLIC_PLAUSIBLE_DOMAIN en Railway — hasta entonces, no
+            se carga ningún script y no cambia nada del comportamiento
+            actual. Ver lib/env.ts para el porqué de la elección. */}
+        {env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN && (
+          <script defer data-domain={env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN} src="https://plausible.io/js/script.js" />
+        )}
       </head>
       <body style={{ overscrollBehavior:'none' }}>
         {children}

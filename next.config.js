@@ -1,6 +1,29 @@
+// AUDITORIA_LANZAMIENTO_V1.md, Fase 5/15 (P0.4): middleware.ts ya
+// fijaba estas cabeceras, pero SOLO en páginas autenticadas -- su
+// `matcher` ni siquiera incluye '/' o '/pricing', y el propio código
+// de middleware.ts devuelve early antes de llegar a esas líneas para
+// cualquier request a /api/*. Definirlas aquí, en next.config.js,
+// las aplica de verdad a TODAS las rutas (landing, pricing, y cada
+// respuesta de API) sin depender del matcher del middleware.
+async function securityHeaders() {
+  return [
+    {
+      source: '/:path*',
+      headers: [
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'X-XSS-Protection', value: '1; mode=block' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      ],
+    },
+  ]
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  headers: securityHeaders,
 }
 
 // Sentry (Fase 4): el plugin de build (source maps + release tracking)

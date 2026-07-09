@@ -313,31 +313,3 @@ Un comité que diseña doce capas, siete indicadores de confianza y nueve agente
 **Lo que se descarta por completo**: una base de datos de grafos dedicada (el modelo relacional aguanta la década); un "Módulo de Auditoría" como capa del pipeline en vez de transversal (crearía el incentivo equivocado de saltárselo bajo presión); cualquier indicador de confianza calculado por autoevaluación del LLM (todos los siete del Confidence Engine se derivan de datos verificables, nunca de que el modelo diga "estoy seguro").
 
 **La pregunta que sobrevive a toda la auditoría**: de las doce capas, los siete indicadores y los nueve agentes, ¿cuál es el único activo que sigue teniendo valor si se elimina todo lo demás? La respuesta no cambia respecto al principio con el que empieza este documento — es el Knowledge Graph, con su historial verificado de decisiones y resultados reales. Todo lo demás en este blueprint —las capas, los motores, el consejo— existe para alimentarlo, protegerlo y demostrar, con métricas y no con opiniones, que crece más inteligente cada mes. Esa es la empresa que este comité está diseñando: no la que mejor usa un modelo de lenguaje este año, sino la que más difícil es de replicar dentro de diez.
-
----
-
-## Addendum: contraste contra el código real (primer paso de adaptación)
-
-El documento de arriba se escribió deliberadamente sin mirar la implementación actual. Este addendum sí la mira — es el primer paso de "después ya adaptaremos el código existente" que quedó pendiente al cierre del blueprint. Mapea cada capa contra lo que ya existe en el repositorio, y marca qué se implementó ya en esta misma sesión como parte de este contraste.
-
-| Capa del blueprint | Módulo real hoy | Estado |
-|---|---|---|
-| 1. Data Layer | `niche_score_history`, `user_niche_interactions`, `niche_outcomes` (migraciones 001-011) | Alineado — captura cruda ya normalizada, sin interpretación. |
-| 2. Knowledge Layer | `lib/services/nicheGraph.ts` + tabla `niches` | Alineado — el grafo relacional ya existe; `category` sigue sin poblarse (gap conocido, P1). |
-| 3. Memory Layer | `lib/services/marketMemory.ts` (Market) + `lib/services/userProfile.ts` (User) | Alineado — ambas son agregaciones puras sobre el Graph, sin duplicar datos, exactamente como diseña el blueprint. |
-| 4. Evidence Layer | `lib/services/engine/reasoningLayer.ts` (`buildContext`, `buildExplanation`) | Alineado — produce el paquete de usedSources/missingSources; contradicciones/evidencia de respaldo viven en la capa 6, no aquí (ver más abajo). |
-| 5. Reasoning Layer | `reasoningLayer.ts` + el propio LLM en `lib/ai.ts::buildSystem` | Parcial — el LLM sigue generando hipótesis Y veredicto en el mismo paso; el blueprint pide que solo genere hipótesis (paso 1 del Reasoning Engine) y que el veredicto salga exclusivamente de la Decision Layer. Este es el gap más importante que queda abierto — no se cierra en esta sesión. |
-| 6. Decision Layer | `lib/services/engine/decisionEngine.ts` (`decide`, `detectContradictions`, `computeSupportingEvidence`) | Alineado — ya es el único punto de decisión, ya pondera evidencia, ya calcula confianza, ya justifica. Construido en la sesión anterior, antes de este blueprint, y encaja sin cambios. |
-| 7. Prediction Layer | `lib/services/engine/predictionEngine.ts` | Alineado en contrato — `isReady()`/`predict()` ya devuelven honestamente "sin datos" hasta el umbral; sin implementación real todavía, tal como diseña el Estadio 2 de AI Evolution. |
-| 8. Recommendation Layer | No existe separada — el veredicto en sí ya cumple ese papel hoy | Sin construir a propósito — la auditoría final del blueprint pide vigilar esta capa antes de separarla; no hay todavía señal de personalización lo bastante fuerte para justificar el coste de separarla de Decision. |
-| 9. Communication Layer | `contextToPromptBlock()` + el bloque de explicabilidad en `app/dashboard/page.tsx` | Alineado — ya es la única frontera que toca directamente al LLM/UI. |
-| 10. Learning Layer | No existe | Sin construir — gateado por volumen de `niche_outcomes` (mismo umbral que Prediction Layer), tal como ya establecía `ARQUITECTURA_INTELIGENCIA_10_ANOS.md`. |
-| 11. Governance Layer | `decisionEngine.ts::decide()` (log estructurado por decisión) | Parcial — logging real ya existe; registro persistente y consultable sigue siendo P1 (requiere migración, requiere tu confirmación). |
-| 12. Metrics Layer | `lib/services/engine/metrics.ts` (**nuevo, añadido en este contraste**) | Parcial, honesto — Graph Coverage y Knowledge Growth ya se calculan de verdad y se muestran en `/admin/motor-propio`; las otras 7 métricas del blueprint quedan documentadas con su condición de activación, no aproximadas. |
-
-**Lo que se implementó en este paso** (aditivo, cero riesgo, sin páginas nuevas — extiende el panel interno ya existente):
-- `lib/services/engine/metrics.ts`: `computeGraphCoverage()` y `computeKnowledgeGrowth()`, las únicas 2 de las 9 métricas de AI Quality calculables hoy sin inventar nada.
-- `/api/admin/motor-propio-stats` y `/admin/motor-propio`: nueva sección "Metrics Layer" con esos dos indicadores, junto a una nota explícita de por qué "con categoría" es bajo hoy.
-- `registry.ts`: Módulo 18 (Metrics Layer) añadido al punto único de acceso al motor.
-
-**Lo que queda como el gap más importante, sin tocar todavía**: la capa 5 (Reasoning). Hoy el LLM sigue generando hipótesis y veredicto en la misma llamada — separar "generar hipótesis" de "decidir" de verdad exigiría rediseñar el prompt de `buildSystem` en `lib/ai.ts`, que es la pieza más frágil y central de todo el sistema (con su propio parser de reparación de JSON). No se toca sin que lo autorices explícitamente, dado el riesgo de romper el contrato JSON que sostiene toda la app.

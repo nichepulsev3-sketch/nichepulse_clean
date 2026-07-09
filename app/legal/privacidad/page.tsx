@@ -40,7 +40,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="5. Con quién compartimos tus datos">
-          Solo con los proveedores estrictamente necesarios para operar el servicio: Supabase (base de datos y autenticación), Stripe (pagos), Anthropic/OpenAI (análisis de IA), Resend (emails transaccionales) y Railway (alojamiento). No vendemos ni alquilamos tus datos a terceros con fines publicitarios.
+          Solo con los proveedores estrictamente necesarios para operar el servicio: Supabase (base de datos y autenticación), Stripe (pagos), Anthropic/OpenAI (análisis de IA), Resend (emails transaccionales), Railway (alojamiento) y, si está activo, Plausible (analítica de uso agregada y sin cookies, no identifica a usuarios individuales). No vendemos ni alquilamos tus datos a terceros con fines publicitarios.
         </Section>
 
         <Section title="6. Cuánto tiempo conservamos tus datos">

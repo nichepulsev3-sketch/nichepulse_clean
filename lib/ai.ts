@@ -11,7 +11,8 @@ import { getTrends, buildTrendContext } from './trends'
 import { env } from './env'
 import { createLogger } from './logger'
 import { cache, CACHE_TTL } from './services/cache'
-import { buildContext as buildEngineContext, contextToPromptBlock, detectContradictions } from './services/engine/reasoningLayer'
+import { buildContext as buildEngineContext, contextToPromptBlock } from './services/engine/reasoningLayer'
+import { decide as decideEngine } from './services/engine/decisionEngine'
 import type { AIConfidence, ReasoningContext } from './services/engine/types'
 import type { NicheResult, Plan, ScoreKey, IntelligenceScores, ScoreCard, Verdict, CompareVerdict } from './types'
 import { SCORE_ORDER } from './types'
@@ -531,26 +532,22 @@ Devuelve SOLO el array JSON con ${maxResults} nichos ordenados por opportunity_s
   log.info('Motor Multi-IA: iniciando búsqueda', { plan, ias: promises.length, geo })
 
   // Adjunta confianza (Módulo 12) y explicabilidad de segunda capa
-  // (Módulo 13, ver AUDITORIA_INTELLIGENCE_ENGINE.md Fase 6/10, P0.1-P0.2-P0.3)
-  // a cada nicho — todo aditivo, calculado por NichePulse, nunca pedido
-  // ni generado por el LLM. El paso de contraste (detectContradictions)
-  // es determinístico: compara lo que el LLM acaba de afirmar contra el
-  // histórico que el Knowledge Graph ya tenía ANTES de preguntarle, sin
-  // ninguna llamada adicional a IA. Si no hubo contexto del motor
-  // (búsqueda anónima o sin sesión), no se añade nada de esto — nunca se
-  // inventa una confianza o explicación que no se calculó de verdad.
+  // (Módulo 13) a cada nicho — todo aditivo, calculado por NichePulse,
+  // nunca pedido ni generado por el LLM. La decisión en sí (¿hay
+  // contradicciones? ¿qué la respalda? ¿qué confianza final tiene?) ya
+  // NO se calcula aquí — vive en un único sitio, decisionEngine.decide()
+  // (ver ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 3), este archivo solo
+  // le pasa el nicho y el contexto ya reunido. Si no hubo contexto del
+  // motor (búsqueda anónima o sin sesión), no se añade nada de esto —
+  // nunca se inventa una confianza o explicación que no se calculó de verdad.
   const withEngineMeta = (niches: NicheResult[]): NicheResult[] => {
     if (!engineConfidence || !engineCtx) return niches
     return niches.map(n => {
-      const contradictions = detectContradictions(n, engineCtx!)
-      const confidence: AIConfidence = contradictions.length
-        ? { ...engineConfidence!, level: engineConfidence!.level === 'alta' ? 'media' : engineConfidence!.level === 'media' ? 'baja' : engineConfidence!.level,
-            reasoning: `${engineConfidence!.reasoning} Se detectaron ${contradictions.length} contradicción(es) con el histórico propio de NichePulse — revisa el detalle antes de confiar del todo.` }
-        : engineConfidence!
+      const decision = decideEngine(n, engineCtx!)
       return {
         ...n,
-        engine_confidence: confidence,
-        engine_explanation: { ...engineCtx!.explanation, contradictions },
+        engine_confidence: decision.confidence,
+        engine_explanation: decision.explanation,
       }
     })
   }

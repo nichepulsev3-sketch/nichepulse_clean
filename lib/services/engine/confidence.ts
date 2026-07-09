@@ -25,7 +25,7 @@ type Level = (typeof LEVEL_LADDER)[number]
  *  y debe limitar el nivel de confianza, aunque haya mucho volumen. */
 const LOW_QUALITY_THRESHOLD = 40
 
-function downgrade(level: Level): Level {
+export function downgrade(level: Level): Level {
   const idx = LEVEL_LADDER.indexOf(level)
   // Nunca baja hasta 'sin_datos' por mala calidad si YA había datos reales
   // (dataPoints > 0) — 'sin_datos' significa "no hay nada que evaluar",
@@ -45,7 +45,8 @@ export function computeConfidence(
   dataPoints: number,
   context?: string,
   dataQuality: number | null = null,
-  coverage = 0
+  coverage = 0,
+  dataFreshnessDays: number | null = null
 ): AIConfidence {
   let level: Level =
     dataPoints <= 0 ? 'sin_datos' :
@@ -70,7 +71,36 @@ export function computeConfidence(
     reasoning += ` El histórico de este nicho es poco consistente entre análisis (calidad ${dataQuality}/100), así que la confianza se limita aunque haya volumen de datos.`
   }
 
-  return { level, dataPoints, dataQuality, coverage, reasoning }
+  const uncertainty = computeUncertainty(dataQuality, coverage, dataPoints)
+
+  return { level, dataPoints, dataQuality, coverage, dataFreshnessDays, uncertainty, reasoning }
+}
+
+/**
+ * Días desde el snapshot más reciente de niche_score_history para este
+ * nicho -- Fase 5 (P0.3) de ARQUITECTURA_INTELIGENCIA_10_ANOS.md. `null`
+ * si nunca se registró ningún snapshot (`recordedAt` inexistente), nunca
+ * un valor inventado como "0 días" cuando en realidad no hay dato.
+ */
+export function computeDataFreshness(mostRecentRecordedAt: string | null | undefined): number | null {
+  if (!mostRecentRecordedAt) return null
+  const recorded = new Date(mostRecentRecordedAt).getTime()
+  if (!isFinite(recorded)) return null
+  const days = Math.floor((Date.now() - recorded) / (24 * 60 * 60 * 1000))
+  return Math.max(0, days)
+}
+
+/**
+ * 0-100: incertidumbre agregada -- lectura inversa de coverage/dataQuality/
+ * dataPoints, nunca una señal nueva. dataQuality ausente (< 2 snapshots
+ * que comparar) se trata como neutral (50), ni castiga ni premia -- no
+ * hay suficiente información todavía para afirmar nada sobre consistencia.
+ */
+export function computeUncertainty(dataQuality: number | null, coverage: number, dataPoints: number): number {
+  const qualityTerm = dataQuality ?? 50
+  const volumeTerm = Math.min(dataPoints, 10) * 10 // tope en 10 puntos reales = 100
+  const certainty = coverage * 0.4 + qualityTerm * 0.4 + volumeTerm * 0.2
+  return Math.round(Math.max(0, Math.min(100, 100 - certainty)))
 }
 
 /**

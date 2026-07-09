@@ -20,6 +20,7 @@ import * as marketMemory from '@/lib/services/marketMemory'
 import * as predictionEngine from './predictionEngine'
 import * as confidenceModule from './confidence'
 import * as reasoningLayer from './reasoningLayer'
+import * as decisionEngineModule from './decisionEngine'
 
 export const engine = {
   /** Módulo 1 — Knowledge Engine (lectura/escritura ya en nicheGraph.ts). */
@@ -62,6 +63,13 @@ export const engine = {
   /** Módulo 12 — AI Confidence. */
   confidence: {
     compute: confidenceModule.computeConfidence,
+  },
+  /** Módulo 17 — Decision Engine (único punto de decisión del motor,
+   *  ver ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 3). */
+  decision: {
+    decide: decisionEngineModule.decide,
+    detectContradictions: decisionEngineModule.detectContradictions,
+    computeSupportingEvidence: decisionEngineModule.computeSupportingEvidence,
   },
 } as const
 

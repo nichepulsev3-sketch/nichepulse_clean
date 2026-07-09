@@ -162,21 +162,28 @@ export interface NicheResult {
   // contexto propio que le dio al motor para generar este nicho.
   // dataQuality/coverage añadidos en AUDITORIA_INTELLIGENCE_ENGINE.md
   // (Fase 5, P0.3) — separan "cuántos datos hay" de "cuán fiables son".
+  // dataFreshnessDays/uncertainty añadidos en
+  // ARQUITECTURA_INTELIGENCIA_10_ANOS.md (Fase 5, P0.3).
   engine_confidence?: {
     level: 'sin_datos' | 'baja' | 'media' | 'alta'
     dataPoints: number
     dataQuality?: number | null
     coverage?: number
+    dataFreshnessDays?: number | null
+    uncertainty?: number
     reasoning: string
   }
   // Explicabilidad de segunda capa (Módulo 13, Fase 6/10 de
   // AUDITORIA_INTELLIGENCE_ENGINE.md, P0.1-P0.2) — qué datos propios de
-  // NichePulse se usaron/faltaron, y qué contradicciones deterministas
-  // se detectaron entre esta respuesta y el histórico del propio Graph.
+  // NichePulse se usaron/faltaron, qué contradicciones deterministas se
+  // detectaron entre esta respuesta y el histórico del propio Graph, y
+  // qué evidencia de ese mismo histórico la RESPALDA (supportingEvidence,
+  // ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 4, P0.2).
   engine_explanation?: {
     usedSources: string[]
     missingSources: string[]
     contradictions: string[]
+    supportingEvidence?: string[]
   }
 }
 

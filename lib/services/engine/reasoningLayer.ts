@@ -20,7 +20,7 @@ import { getKnownNiche, getRelatedNiches } from '@/lib/services/nicheGraph'
 import { getUserProfile } from '@/lib/services/userProfile'
 import { getScoreTrend } from '@/lib/services/marketMemory'
 import { predict } from './predictionEngine'
-import { computeConfidence, computeDataQuality, computeCoverage } from './confidence'
+import { computeConfidence, computeDataQuality, computeCoverage, computeDataFreshness } from './confidence'
 import type { ReasoningContext, EngineExplanation } from './types'
 
 const log = createLogger('services/engine/reasoningLayer')
@@ -96,13 +96,19 @@ export async function buildContext(input: BuildContextInput): Promise<ReasoningC
   }
   const coverage = computeCoverage(coverageFlags)
 
+  // Fase 5 / P0.3: frescura del dato más reciente del histórico -- un
+  // snapshot "correcto" de hace 6 meses no es igual de fiable que uno de
+  // ayer, y antes no había forma de distinguirlos en la confianza final.
+  const dataFreshnessDays = computeDataFreshness(marketTrend[marketTrend.length - 1]?.recordedAt)
+
   const confidence = computeConfidence(
     dataPoints,
     knownNiche
       ? `Este nicho ya se analizó ${knownNiche.timesAnalyzed} vez/veces antes en NichePulse.`
       : 'Primera vez que NichePulse analiza este nicho — sin histórico propio todavía.',
     dataQuality,
-    coverage
+    coverage,
+    dataFreshnessDays
   )
 
   // Explicabilidad de segunda capa (Fase 6 / P0.2): qué se usó de verdad
@@ -153,49 +159,11 @@ function buildExplanation(
   if (flags.prediction) usedSources.push('Predicción del Prediction Engine')
   else missingSources.push('Sin predicción disponible (Prediction Engine: faltan datos reales de resultado suficientes)')
 
-  return { usedSources, missingSources, contradictions: [] }
-}
-
-/**
- * Paso de contraste determinístico (Fase 10 / P0.1) — SIN llamadas a IA.
- * Compara lo que el LLM acaba de afirmar sobre un nicho contra lo que el
- * propio Knowledge Graph ya sabía ANTES de preguntarle, y devuelve una
- * lista de contradicciones objetivas (vacía si no hay ninguna, o si no
- * hay histórico suficiente para poder contrastar). Esto es lo que hace
- * que NichePulse deje de repetir ciegamente lo que dice el LLM: no
- * sustituye su respuesta, pero puede señalar cuándo desconfiar de ella.
- */
-export function detectContradictions(
-  niche: { verdict?: string | null; opportunity_score?: number | null; profit_score?: number | null },
-  ctx: Pick<ReasoningContext, 'marketTrend'>
-): string[] {
-  const contradictions: string[] = []
-  const trend = ctx.marketTrend
-  if (!trend || trend.length < 2) return contradictions // honesto: sin histórico, no hay nada que contrastar
-
-  const first = trend[0]
-  const last = trend[trend.length - 1]
-  if (first.opportunityScore == null || last.opportunityScore == null) return contradictions
-
-  const delta = last.opportunityScore - first.opportunityScore
-  const SIGNIFICANT = 10
-  const verdict = niche.verdict ?? null
-  const score = niche.opportunity_score ?? niche.profit_score ?? null
-
-  if (delta <= -SIGNIFICANT && verdict === 'invertir') {
-    contradictions.push(`El veredicto es "invertir", pero el score de este nicho ha bajado ${Math.abs(delta)} puntos en NichePulse en los últimos análisis — contrástalo antes de decidir.`)
-  }
-  if (delta >= SIGNIFICANT && verdict === 'evitar') {
-    contradictions.push(`El veredicto es "evitar", pero el score de este nicho ha subido ${delta} puntos en NichePulse en los últimos análisis — contrástalo antes de decidir.`)
-  }
-  if (score != null && last.opportunityScore != null) {
-    const jump = Math.abs(score - last.opportunityScore)
-    if (jump >= 30) {
-      contradictions.push(`El score de esta respuesta (${score}) se aleja mucho del último registrado para este nicho (${last.opportunityScore}) sin que el veredicto haya cambiado de forma proporcional.`)
-    }
-  }
-
-  return contradictions
+  // contradictions/supportingEvidence se calculan DESPUÉS de conocer la
+  // respuesta del LLM (ver lib/services/engine/decisionEngine.ts, Fase 3)
+  // -- reasoningLayer solo reúne hechos, nunca decide; aquí siempre van
+  // vacíos, decisionEngine.decide() los rellena con los valores reales.
+  return { usedSources, missingSources, contradictions: [], supportingEvidence: [] }
 }
 
 /**

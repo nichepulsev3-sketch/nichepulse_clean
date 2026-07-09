@@ -975,6 +975,7 @@ export default function Dashboard() {
                     <span style={{fontSize:12,fontWeight:700,color:LEVEL_COLOR[c.level]}}>🧠 {LEVEL_LABEL[c.level]}</span>
                     {typeof c.coverage==='number'&&<span style={{fontSize:11,color:'var(--t3)'}}>· Cobertura de datos propios: {c.coverage}%</span>}
                     {c.dataQuality!=null&&<span style={{fontSize:11,color:'var(--t3)'}}>· Consistencia del histórico: {c.dataQuality}%</span>}
+                    {c.dataFreshnessDays!=null&&<span style={{fontSize:11,color:'var(--t3)'}}>· Dato de hace {c.dataFreshnessDays===0?'hoy':c.dataFreshnessDays===1?'1 día':`${c.dataFreshnessDays} días`}</span>}
                   </div>
                   <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5}}>{c.reasoning}</div>
                   {hasContradictions&&(
@@ -982,6 +983,15 @@ export default function Dashboard() {
                       {exp!.contradictions.map((ct,i)=>(
                         <div key={i} style={{fontSize:12,color:'#fbbf24',display:'flex',gap:6,marginBottom:4}}>
                           <span style={{flexShrink:0}}>⚠️</span><span>{ct}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!!exp?.supportingEvidence?.length&&(
+                    <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid rgba(45,212,191,0.2)'}}>
+                      {exp!.supportingEvidence!.map((se,i)=>(
+                        <div key={i} style={{fontSize:12,color:'#2dd4bf',display:'flex',gap:6,marginBottom:4}}>
+                          <span style={{flexShrink:0}}>✓</span><span>{se}</span>
                         </div>
                       ))}
                     </div>

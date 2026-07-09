@@ -43,6 +43,22 @@ export interface AIConfidence {
    * para esta respuesta concreta.
    */
   coverage: number
+  /**
+   * Días desde el snapshot más reciente de niche_score_history para este
+   * nicho -- ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 5 (P0.3). `null`
+   * si nunca se registró ningún snapshot (nicho sin histórico todavía).
+   * Un dato "correcto" pero de hace 6 meses no es igual de fiable que uno
+   * de ayer, y antes no había forma de distinguirlos.
+   */
+  dataFreshnessDays: number | null
+  /**
+   * 0-100: incertidumbre agregada -- combinación determinista de
+   * coverage, dataQuality y dataPoints (nunca un dato nuevo, solo la
+   * lectura inversa de los tres anteriores). 100 = máxima incertidumbre.
+   * Pensado como resumen de un vistazo, no sustituye a mirar los tres
+   * campos por separado si hace falta el detalle.
+   */
+  uncertainty: number
   /** Por qué ese nivel, en una frase corta y concreta. */
   reasoning: string
 }
@@ -67,6 +83,15 @@ export interface EngineExplanation {
    * histórico suficiente para poder contrastar.
    */
   contradictions: string[]
+  /**
+   * ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 4 (P0.2, Evidence Engine):
+   * el lado positivo de detectContradictions -- señales deterministas
+   * (mismo dato, sin IA) de que el histórico del Graph RESPALDA lo que
+   * afirma el LLM, no solo la ausencia de contradicción. Vacío si no hay
+   * histórico suficiente para poder contrastar, nunca una afirmación de
+   * respaldo sin evidencia real detrás.
+   */
+  supportingEvidence: string[]
 }
 
 /** De dónde viene cada pieza de información que usó el motor — Módulo 13. */
@@ -121,6 +146,15 @@ export interface Prediction {
   saturationProbability: number | null
   riskLevel: number | null
   estimatedTimeToResults: string | null
+  /**
+   * ARQUITECTURA_INTELIGENCIA_10_ANOS.md, Fase 10 (P0.4): contrato
+   * ampliado a los 6 campos que pide el diseño de Prediction Engine 2.0.
+   * Cero cambio de comportamiento -- predict() sigue devolviendo `null`
+   * hasta que isReady() sea true (ver predictionEngine.ts), esto solo
+   * deja el tipo listo para cuando exista implementación real detrás.
+   */
+  successProbability: number | null
+  competitionLevel: number | null
 }
 
 /** Contexto reunido por la Reasoning Layer ANTES de llamar al LLM.

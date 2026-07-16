@@ -619,12 +619,26 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Camino A: vista previa instantánea sin IA (Motor propio) */}
+              {/* Camino A: vista previa instantánea sin IA (Motor propio).
+                  Es solo un momentum score de señales de trends.ts, no el
+                  análisis completo (esto NO sustituye a la IA -- ver
+                  lib/services/scoringEngine.ts). "El producto" real (el
+                  NicheResult completo, con los 12 scores y explicabilidad)
+                  solo existe tras pasar por /api/search-niches -- por eso
+                  pulsar esta tarjeta dispara runSearch() de verdad en vez
+                  de fabricar un resultado a partir de estos pocos datos. */}
               {fastPreview&&(
-                <div style={{background:'var(--c3)',border:`1px solid ${fastPreview.matched?'rgba(0,229,195,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:'10px 14px',marginBottom:'.9rem',fontSize:12.5}}>
+                <div
+                  onClick={()=>{ if(!loading&&query.trim()&&!noSearches) runSearch() }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e=>{ if((e.key==='Enter'||e.key===' ')&&!loading&&query.trim()&&!noSearches){ e.preventDefault(); runSearch() } }}
+                  title={noSearches?'Sin búsquedas hoy -- sube a Pro para análisis ilimitados':'Pulsa para ver el análisis completo con IA'}
+                  className={loading||noSearches?'':'card-hover'}
+                  style={{background:'var(--c3)',border:`1px solid ${fastPreview.matched?'rgba(0,229,195,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:'10px 14px',marginBottom:'.9rem',fontSize:12.5,cursor:loading||noSearches?'default':'pointer',opacity:loading?.6:1,transition:'all .15s'}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:6}}>
                     <span style={{fontWeight:700,color:'var(--acc3)'}}>⚡ Vista rápida (sin IA, gratis)</span>
-                    <button onClick={()=>setFastPreview(null)} style={{background:'none',border:'none',color:'var(--t3)',cursor:'pointer',fontSize:13,padding:0}}>✕</button>
+                    <button onClick={e=>{ e.stopPropagation(); setFastPreview(null) }} style={{background:'none',border:'none',color:'var(--t3)',cursor:'pointer',fontSize:13,padding:0}}>✕</button>
                   </div>
                   {fastPreview.matched?(
                     <>
@@ -637,6 +651,11 @@ export default function Dashboard() {
                     </>
                   ):(
                     <div style={{color:'var(--t3)'}}>{fastPreview.reasons[0]}</div>
+                  )}
+                  {!noSearches&&(
+                    <div style={{fontSize:11,color:'var(--acc3)',marginTop:8,fontWeight:600}}>
+                      {loading?'⏳ Analizando con IA...':'✦ Pulsa para ver el análisis completo con IA →'}
+                    </div>
                   )}
                 </div>
               )}

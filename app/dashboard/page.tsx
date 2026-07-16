@@ -629,13 +629,13 @@ export default function Dashboard() {
                   de fabricar un resultado a partir de estos pocos datos. */}
               {fastPreview&&(
                 <div
-                  onClick={()=>{ if(!loading&&query.trim()&&!noSearches) runSearch() }}
+                  onClick={()=>{ if(!loading&&query.trim()) runSearch() }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={e=>{ if((e.key==='Enter'||e.key===' ')&&!loading&&query.trim()&&!noSearches){ e.preventDefault(); runSearch() } }}
-                  title={noSearches?'Sin búsquedas hoy -- sube a Pro para análisis ilimitados':'Pulsa para ver el análisis completo con IA'}
-                  className={loading||noSearches?'':'card-hover'}
-                  style={{background:'var(--c3)',border:`1px solid ${fastPreview.matched?'rgba(0,229,195,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:'10px 14px',marginBottom:'.9rem',fontSize:12.5,cursor:loading||noSearches?'default':'pointer',opacity:loading?.6:1,transition:'all .15s'}}>
+                  onKeyDown={e=>{ if((e.key==='Enter'||e.key===' ')&&!loading&&query.trim()){ e.preventDefault(); runSearch() } }}
+                  title="Pulsa para ver el análisis completo con IA"
+                  className={loading?'':'card-hover'}
+                  style={{background:'var(--c3)',border:`1px solid ${fastPreview.matched?'rgba(0,229,195,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:'10px 14px',marginBottom:'.9rem',fontSize:12.5,cursor:loading?'default':'pointer',opacity:loading?.6:1,transition:'all .15s'}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:6}}>
                     <span style={{fontWeight:700,color:'var(--acc3)'}}>⚡ Vista rápida (sin IA, gratis)</span>
                     <button onClick={e=>{ e.stopPropagation(); setFastPreview(null) }} style={{background:'none',border:'none',color:'var(--t3)',cursor:'pointer',fontSize:13,padding:0}}>✕</button>
@@ -652,11 +652,17 @@ export default function Dashboard() {
                   ):(
                     <div style={{color:'var(--t3)'}}>{fastPreview.reasons[0]}</div>
                   )}
-                  {!noSearches&&(
-                    <div style={{fontSize:11,color:'var(--acc3)',marginTop:8,fontWeight:600}}>
-                      {loading?'⏳ Analizando con IA...':'✦ Pulsa para ver el análisis completo con IA →'}
-                    </div>
-                  )}
+                  {/* Siempre interactiva, incluso sin búsquedas restantes hoy:
+                      pulsar intenta el análisis completo igualmente -- si el
+                      plan ya no tiene cuota, /api/search-niches responde con
+                      su propio 429 ("Límite de búsquedas alcanzado. Actualiza
+                      a Pro.") y ese mensaje real se muestra con el manejo de
+                      error que ya existe más abajo. Más honesto que ocultar
+                      el botón: el usuario decide si quiere intentarlo o
+                      subir de plan, no se lo decidimos nosotros de antemano. */}
+                  <div style={{fontSize:11,color:'var(--acc3)',marginTop:8,fontWeight:600}}>
+                    {loading?'⏳ Analizando con IA...':noSearches?'✦ Pulsa para intentarlo (o sube a Pro para ilimitado) →':'✦ Pulsa para ver el análisis completo con IA →'}
+                  </div>
                 </div>
               )}
               <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
